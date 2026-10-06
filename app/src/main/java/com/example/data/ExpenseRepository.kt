@@ -62,7 +62,6 @@ class ExpenseRepository(private val context: Context) {
         ensureFirebaseInitialized()
         loadLocalCache()
         val uid = getActiveUserId()
-        ensureDataZeroIfFirstReset(uid)
         attachRtdbListeners(uid)
     }
 

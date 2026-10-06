@@ -187,7 +187,6 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     private fun refreshData(uid: String) {
-        repository.ensureDataZeroIfFirstReset(uid)
         repository.attachRtdbListeners(uid)
 
         viewModelScope.launch {
@@ -226,9 +225,15 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         _authLoading.value = true
         _authError.value = null
         Firebase.auth.createUserWithEmailAndPassword(email, pass)
-            .addOnSuccessListener {
-                _authLoading.value = false
-                // Note: We could save the name to a user profile in RTDB if needed
+            .addOnSuccessListener { result ->
+                val user = result.user
+                val profileUpdates = com.google.firebase.auth.userProfileChangeRequest {
+                    displayName = name
+                }
+                user?.updateProfile(profileUpdates)?.addOnCompleteListener {
+                    _authLoading.value = false
+                    // Auth state listener will handle the navigation/refresh
+                }
             }
             .addOnFailureListener {
                 _authLoading.value = false
