@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Home Expense Tracker</string>
+    <string name="default_web_client_id" translatable="false">248460314025-dummy.apps.googleusercontent.com</string>
+</resources>

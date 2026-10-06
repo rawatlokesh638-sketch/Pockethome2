@@ -1,0 +1,6 @@
+{
+  "name": "Home Expense Tracker",
+  "description": "Smart home expense, grocery, and bill tracker with real-time sync, monthly budgets, and analytics.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

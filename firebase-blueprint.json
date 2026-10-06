@@ -1,0 +1,66 @@
+{
+  "entities": {
+    "Transaction": {
+      "title": "Transaction",
+      "description": "An expense or income transaction entry.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "amount": { "type": "number" },
+        "type": { "type": "string", "enum": ["EXPENSE", "INCOME"] },
+        "category": { "type": "string" },
+        "paymentMethod": { "type": "string" },
+        "notes": { "type": "string" },
+        "date": { "type": "string" },
+        "timestamp": { "type": "number" }
+      },
+      "required": ["userId", "title", "amount", "type", "category", "date"]
+    },
+    "Bill": {
+      "title": "Bill",
+      "description": "An upcoming or recurring household bill entry.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "amount": { "type": "number" },
+        "category": { "type": "string" },
+        "dueDate": { "type": "string" },
+        "isPaid": { "type": "boolean" },
+        "paidDate": { "type": "string" },
+        "recurring": { "type": "string" },
+        "notes": { "type": "string" }
+      },
+      "required": ["userId", "title", "amount", "dueDate", "isPaid"]
+    },
+    "Budget": {
+      "title": "Budget",
+      "description": "Monthly budget allocation settings.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "month": { "type": "string" },
+        "monthlyBudget": { "type": "number" }
+      },
+      "required": ["userId", "month", "monthlyBudget"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/transactions/{transactionId}": {
+      "schema": "Transaction",
+      "description": "Transactions belonging to a user."
+    },
+    "/users/{userId}/bills/{billId}": {
+      "schema": "Bill",
+      "description": "Upcoming and recurring bills belonging to a user."
+    },
+    "/users/{userId}/budgets/{budgetId}": {
+      "schema": "Budget",
+      "description": "Monthly budgets configured by a user."
+    }
+  }
+}
