@@ -39,7 +39,7 @@ class ExpenseRepository(private val context: Context) {
     private val prefs: SharedPreferences =
         context.getSharedPreferences("pocket_home_prefs", Context.MODE_PRIVATE)
 
-    // Using Realtime Database (RTDB) as requested
+    // Using Realtime Database (RTDB)
     private val rtdb: FirebaseDatabase? by lazy {
         try {
             ensureFirebaseInitialized()
@@ -49,6 +49,8 @@ class ExpenseRepository(private val context: Context) {
             null
         }
     }
+
+    private var currentUserId: String = ""
 
     private val _localTransactions = MutableStateFlow<List<Transaction>>(emptyList())
     private val _localBills = MutableStateFlow<List<Bill>>(emptyList())
@@ -60,9 +62,15 @@ class ExpenseRepository(private val context: Context) {
 
     init {
         ensureFirebaseInitialized()
-        loadLocalCache()
-        val uid = getActiveUserId()
-        attachRtdbListeners(uid)
+        val authUser = try { Firebase.auth.currentUser } catch (e: Throwable) { null }
+        if (authUser != null && authUser.uid.isNotEmpty()) {
+            onUserChanged(authUser.uid)
+        } else {
+            // Fresh/logged-out state starts with 0
+            _localTransactions.value = emptyList()
+            _localBills.value = emptyList()
+            _localBudget.value = Budget()
+        }
     }
 
     private fun ensureFirebaseInitialized() {
@@ -74,7 +82,6 @@ class ExpenseRepository(private val context: Context) {
                     .setProjectId("pocket-home-3d327")
                     .setStorageBucket("pocket-home-3d327.firebasestorage.app")
                     .setGcmSenderId("248460314025")
-                    // If your RTDB is in a different region, you might need setDatabaseUrl()
                     .build()
                 FirebaseApp.initializeApp(context, options)
                 Log.d("ExpenseRepo", "FirebaseApp initialized explicitly")
@@ -93,6 +100,9 @@ class ExpenseRepository(private val context: Context) {
         if (authUser != null && authUser.uid.isNotEmpty()) {
             return authUser.uid
         }
+        if (currentUserId.isNotEmpty()) {
+            return currentUserId
+        }
         var localId = prefs.getString("local_household_id", null)
         if (localId == null) {
             localId = "household_" + UUID.randomUUID().toString().replace("-", "").take(12)
@@ -101,52 +111,93 @@ class ExpenseRepository(private val context: Context) {
         return localId
     }
 
-    private fun loadLocalCache() {
+    fun onUserChanged(userId: String) {
+        currentUserId = userId
+        loadLocalCacheForUser(userId)
+        attachRtdbListeners(userId)
+    }
+
+    fun onUserLoggedOut() {
+        detachRtdbListeners()
+        currentUserId = ""
+        _localTransactions.value = emptyList()
+        _localBills.value = emptyList()
+        _localBudget.value = Budget()
+    }
+
+    private fun detachRtdbListeners() {
+        val database = rtdb ?: return
+        if (currentUserId.isNotEmpty()) {
+            val userRef = database.reference.child("users").child(currentUserId)
+            txListener?.let { userRef.child("transactions").removeEventListener(it) }
+            billListener?.let { userRef.child("bills").removeEventListener(it) }
+            val currentMonthStr = SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(Date())
+            budgetListener?.let { userRef.child("budgets").child(currentMonthStr).removeEventListener(it) }
+        }
+        txListener = null
+        billListener = null
+        budgetListener = null
+    }
+
+    private fun loadLocalCacheForUser(userId: String) {
         try {
-            val txJson = prefs.getString("cached_transactions", null)
+            val txJson = prefs.getString("cached_transactions_$userId", null)
             if (!txJson.isNullOrEmpty()) {
                 val list = transactionListAdapter.fromJson(txJson) ?: emptyList()
                 _localTransactions.value = list
+            } else {
+                _localTransactions.value = emptyList()
             }
 
-            val billJson = prefs.getString("cached_bills", null)
+            val billJson = prefs.getString("cached_bills_$userId", null)
             if (!billJson.isNullOrEmpty()) {
                 val list = billListAdapter.fromJson(billJson) ?: emptyList()
                 _localBills.value = list
+            } else {
+                _localBills.value = emptyList()
             }
 
-            val budgetJson = prefs.getString("cached_budget", null)
+            val currentMonthStr = SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(Date())
+            val budgetJson = prefs.getString("cached_budget_$userId", null)
             if (!budgetJson.isNullOrEmpty()) {
-                val b = budgetAdapter.fromJson(budgetJson) ?: Budget()
+                val b = budgetAdapter.fromJson(budgetJson) ?: Budget(id = currentMonthStr, userId = userId, month = currentMonthStr, monthlyBudget = 0.0)
                 _localBudget.value = b
+            } else {
+                _localBudget.value = Budget(id = currentMonthStr, userId = userId, month = currentMonthStr, monthlyBudget = 0.0)
             }
         } catch (e: Throwable) {
-            Log.e("ExpenseRepo", "Error reading local cache", e)
+            Log.e("ExpenseRepo", "Error reading local cache for user $userId", e)
+            _localTransactions.value = emptyList()
+            _localBills.value = emptyList()
+            _localBudget.value = Budget()
         }
     }
 
-    private fun persistLocalTransactions(list: List<Transaction>) {
+    private fun persistLocalTransactions(userId: String, list: List<Transaction>) {
         _localTransactions.value = list
         try {
-            prefs.edit().putString("cached_transactions", transactionListAdapter.toJson(list)).apply()
+            val key = if (userId.isNotEmpty()) "cached_transactions_$userId" else "cached_transactions"
+            prefs.edit().putString(key, transactionListAdapter.toJson(list)).apply()
         } catch (e: Throwable) {
             Log.e("ExpenseRepo", "Error persisting transactions", e)
         }
     }
 
-    private fun persistLocalBills(list: List<Bill>) {
+    private fun persistLocalBills(userId: String, list: List<Bill>) {
         _localBills.value = list
         try {
-            prefs.edit().putString("cached_bills", billListAdapter.toJson(list)).apply()
+            val key = if (userId.isNotEmpty()) "cached_bills_$userId" else "cached_bills"
+            prefs.edit().putString(key, billListAdapter.toJson(list)).apply()
         } catch (e: Throwable) {
             Log.e("ExpenseRepo", "Error persisting bills", e)
         }
     }
 
-    private fun persistLocalBudget(budget: Budget) {
+    private fun persistLocalBudget(userId: String, budget: Budget) {
         _localBudget.value = budget
         try {
-            prefs.edit().putString("cached_budget", budgetAdapter.toJson(budget)).apply()
+            val key = if (userId.isNotEmpty()) "cached_budget_$userId" else "cached_budget"
+            prefs.edit().putString(key, budgetAdapter.toJson(budget)).apply()
         } catch (e: Throwable) {
             Log.e("ExpenseRepo", "Error persisting budget", e)
         }
@@ -161,16 +212,19 @@ class ExpenseRepository(private val context: Context) {
         txListener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 val items = mutableListOf<Transaction>()
-                snapshot.children.forEach { child ->
-                    try {
-                        child.getValue(Transaction::class.java)?.let {
-                            items.add(it.copy(id = child.key ?: ""))
+                if (snapshot.exists()) {
+                    snapshot.children.forEach { child ->
+                        try {
+                            child.getValue(Transaction::class.java)?.let {
+                                items.add(it.copy(id = child.key ?: ""))
+                            }
+                        } catch (e: Exception) {
+                            Log.e("ExpenseRepo", "Error parsing transaction from RTDB", e)
                         }
-                    } catch (e: Exception) {
-                        Log.e("ExpenseRepo", "Error parsing transaction from RTDB", e)
                     }
                 }
-                persistLocalTransactions(items.sortedByDescending { it.timestamp })
+                // On signup with 0 records, snapshot is empty and items is emptyList()
+                persistLocalTransactions(userId, items.sortedByDescending { it.timestamp })
             }
             override fun onCancelled(error: DatabaseError) {
                 Log.w("ExpenseRepo", "RTDB transaction listen cancelled: ${error.message}")
@@ -183,16 +237,18 @@ class ExpenseRepository(private val context: Context) {
         billListener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 val items = mutableListOf<Bill>()
-                snapshot.children.forEach { child ->
-                    try {
-                        child.getValue(Bill::class.java)?.let {
-                            items.add(it.copy(id = child.key ?: ""))
+                if (snapshot.exists()) {
+                    snapshot.children.forEach { child ->
+                        try {
+                            child.getValue(Bill::class.java)?.let {
+                                items.add(it.copy(id = child.key ?: ""))
+                            }
+                        } catch (e: Exception) {
+                            Log.e("ExpenseRepo", "Error parsing bill from RTDB", e)
                         }
-                    } catch (e: Exception) {
-                        Log.e("ExpenseRepo", "Error parsing bill from RTDB", e)
                     }
                 }
-                persistLocalBills(items.sortedBy { it.dueDate })
+                persistLocalBills(userId, items.sortedBy { it.dueDate })
             }
             override fun onCancelled(error: DatabaseError) {
                 Log.w("ExpenseRepo", "RTDB bill listen cancelled: ${error.message}")
@@ -208,11 +264,13 @@ class ExpenseRepository(private val context: Context) {
                 if (snapshot.exists()) {
                     try {
                         snapshot.getValue(Budget::class.java)?.let {
-                            persistLocalBudget(it.copy(id = snapshot.key ?: ""))
+                            persistLocalBudget(userId, it.copy(id = snapshot.key ?: ""))
                         }
                     } catch (e: Exception) {
                         Log.e("ExpenseRepo", "Error parsing budget from RTDB", e)
                     }
+                } else {
+                    persistLocalBudget(userId, Budget(id = currentMonthStr, userId = userId, month = currentMonthStr, monthlyBudget = 0.0))
                 }
             }
             override fun onCancelled(error: DatabaseError) {
@@ -222,15 +280,15 @@ class ExpenseRepository(private val context: Context) {
         userRef.child("budgets").child(currentMonthStr).addValueEventListener(budgetListener!!)
     }
 
-    fun observeTransactions(userId: String): Flow<List<Transaction>> {
+    fun observeTransactions(userId: String = ""): Flow<List<Transaction>> {
         return _localTransactions.asStateFlow()
     }
 
-    fun observeBills(userId: String): Flow<List<Bill>> {
+    fun observeBills(userId: String = ""): Flow<List<Bill>> {
         return _localBills.asStateFlow()
     }
 
-    fun observeBudget(userId: String, month: String): Flow<Budget> {
+    fun observeBudget(userId: String = "", month: String = ""): Flow<Budget> {
         return _localBudget.asStateFlow()
     }
 
@@ -245,7 +303,7 @@ class ExpenseRepository(private val context: Context) {
         val index = currentList.indexOfFirst { it.id == txId }
         if (index >= 0) currentList[index] = data else currentList.add(0, data)
         currentList.sortByDescending { it.timestamp }
-        persistLocalTransactions(currentList)
+        persistLocalTransactions(userId, currentList)
         onSuccess()
 
         // Sync to RTDB
@@ -269,7 +327,7 @@ class ExpenseRepository(private val context: Context) {
 
     fun deleteTransaction(userId: String, transactionId: String, onSuccess: () -> Unit = {}) {
         val currentList = _localTransactions.value.filterNot { it.id == transactionId }
-        persistLocalTransactions(currentList)
+        persistLocalTransactions(userId, currentList)
         onSuccess()
 
         rtdb?.reference?.child("users")?.child(userId)?.child("transactions")?.child(transactionId)
@@ -286,7 +344,7 @@ class ExpenseRepository(private val context: Context) {
         val index = currentList.indexOfFirst { it.id == billId }
         if (index >= 0) currentList[index] = data else currentList.add(data)
         currentList.sortBy { it.dueDate }
-        persistLocalBills(currentList)
+        persistLocalBills(userId, currentList)
         onSuccess()
 
         db.reference.child("users").child(userId).child("bills").child(billId).setValue(data)
@@ -301,7 +359,7 @@ class ExpenseRepository(private val context: Context) {
 
     fun deleteBill(userId: String, billId: String, onSuccess: () -> Unit = {}) {
         val currentList = _localBills.value.filterNot { it.id == billId }
-        persistLocalBills(currentList)
+        persistLocalBills(userId, currentList)
         onSuccess()
         rtdb?.reference?.child("users")?.child(userId)?.child("bills")?.child(billId)?.removeValue()
     }
@@ -311,24 +369,18 @@ class ExpenseRepository(private val context: Context) {
         val currentMonthStr = SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(Date())
         val data = budget.copy(id = currentMonthStr, userId = userId, month = currentMonthStr)
 
-        persistLocalBudget(data)
+        persistLocalBudget(userId, data)
         onSuccess()
         rtdb?.reference?.child("users")?.child(userId)?.child("budgets")?.child(currentMonthStr)?.setValue(data)
     }
 
     fun clearAllData(userId: String, onComplete: () -> Unit = {}) {
         val currentMonthStr = SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(Date())
-        persistLocalTransactions(emptyList())
-        persistLocalBills(emptyList())
-        persistLocalBudget(Budget(id = currentMonthStr, userId = userId, month = currentMonthStr, monthlyBudget = 0.0))
-        prefs.edit().putBoolean("data_cleared_to_zero_v5", true).apply()
+        persistLocalTransactions(userId, emptyList())
+        persistLocalBills(userId, emptyList())
+        persistLocalBudget(userId, Budget(id = currentMonthStr, userId = userId, month = currentMonthStr, monthlyBudget = 0.0))
         onComplete()
 
         rtdb?.reference?.child("users")?.child(userId)?.removeValue()
-    }
-
-    fun ensureDataZeroIfFirstReset(userId: String) {
-        val alreadyCleared = prefs.getBoolean("data_cleared_to_zero_v5", false)
-        if (!alreadyCleared) clearAllData(userId)
     }
 }

@@ -164,6 +164,21 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     )
 
     init {
+        viewModelScope.launch {
+            repository.observeTransactions().collect { list ->
+                _transactions.value = list
+            }
+        }
+        viewModelScope.launch {
+            repository.observeBills().collect { list ->
+                _bills.value = list
+            }
+        }
+        viewModelScope.launch {
+            repository.observeBudget().collect { b ->
+                _budget.value = b
+            }
+        }
         setupAuthListener()
     }
 
@@ -175,37 +190,17 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
             if (loggedIn) {
                 _authMode.value = AuthMode.DASHBOARD
                 _activeUserId.value = user!!.uid
-                refreshData(user.uid)
+                repository.onUserChanged(user.uid)
             } else {
                 _authMode.value = AuthMode.LOGIN
-                _activeUserId.value = repository.getActiveUserId() // Local ID fallback
-                _transactions.value = emptyList()
-                _bills.value = emptyList()
-                _budget.value = Budget()
+                _activeUserId.value = ""
+                repository.onUserLoggedOut()
             }
         }
     }
 
-    private fun refreshData(uid: String) {
-        repository.attachRtdbListeners(uid)
-
-        viewModelScope.launch {
-            repository.observeTransactions(uid).collect { list ->
-                _transactions.value = list
-            }
-        }
-
-        viewModelScope.launch {
-            repository.observeBills(uid).collect { list ->
-                _bills.value = list
-            }
-        }
-
-        viewModelScope.launch {
-            repository.observeBudget(uid, currentMonthStr).collect { b ->
-                _budget.value = b
-            }
-        }
+    fun refreshData(uid: String) {
+        repository.onUserChanged(uid)
     }
 
     fun login(email: String, pass: String) {
