@@ -82,6 +82,7 @@ class ExpenseRepository(private val context: Context) {
                     .setProjectId("pocket-home-3d327")
                     .setStorageBucket("pocket-home-3d327.firebasestorage.app")
                     .setGcmSenderId("248460314025")
+                    .setDatabaseUrl("https://pocket-home-3d327-default-rtdb.firebaseio.com")
                     .build()
                 FirebaseApp.initializeApp(context, options)
                 Log.d("ExpenseRepo", "FirebaseApp initialized explicitly")
