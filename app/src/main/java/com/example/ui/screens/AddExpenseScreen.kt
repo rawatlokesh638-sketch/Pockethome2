@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -70,8 +71,10 @@ import java.util.Locale
 @Composable
 fun AddExpenseScreen(
     editingTransaction: Transaction? = null,
+    isPro: Boolean = false,
     onBack: () -> Unit,
     onSave: (Transaction) -> Unit,
+    onUpgradeClicked: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var amountText by remember {
@@ -381,26 +384,36 @@ fun AddExpenseScreen(
                         .clip(RoundedCornerShape(12.dp))
                         .background(MaterialTheme.colorScheme.surface)
                         .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                        .clickable(!isPro) { onUpgradeClicked() }
                         .padding(horizontal = 14.dp, vertical = 10.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "Recurring Expense",
+                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                                color = if (isPro) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                            )
+                            if (!isPro) {
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Icon(imageVector = Icons.Default.Lock, contentDescription = "Pro Only", modifier = Modifier.size(14.dp), tint = Color.Gray)
+                            }
+                        }
                         Text(
-                            text = "Recurring Expense",
-                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = "Auto-repeat every month/week",
+                            text = if (isPro) "Auto-repeat every month/week" else "Upgrade to PRO to auto-repeat expenses",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
 
                     Switch(
-                        checked = isRecurring,
-                        onCheckedChange = { isRecurring = it },
+                        checked = isRecurring && isPro,
+                        onCheckedChange = { 
+                            if (isPro) isRecurring = it 
+                            else onUpgradeClicked()
+                        },
                         colors = SwitchDefaults.colors(
                             checkedThumbColor = Color.White,
                             checkedTrackColor = BrandOrange
@@ -418,9 +431,13 @@ fun AddExpenseScreen(
                         .background(MaterialTheme.colorScheme.surface)
                         .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
                         .clickable {
-                            photoPickerLauncher.launch(
-                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                            )
+                            if (isPro) {
+                                photoPickerLauncher.launch(
+                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                )
+                            } else {
+                                onUpgradeClicked()
+                            }
                         }
                         .padding(horizontal = 14.dp, vertical = 12.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -428,26 +445,26 @@ fun AddExpenseScreen(
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
-                            imageVector = if (receiptUriString.isNotEmpty()) Icons.Default.Receipt else Icons.Default.AttachFile,
+                            imageVector = if (!isPro) Icons.Default.Lock else if (receiptUriString.isNotEmpty()) Icons.Default.Receipt else Icons.Default.AttachFile,
                             contentDescription = "Attach Receipt",
-                            tint = if (receiptUriString.isNotEmpty()) BrandOrange else MaterialTheme.colorScheme.onSurfaceVariant
+                            tint = if (receiptUriString.isNotEmpty() && isPro) BrandOrange else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
                             Text(
-                                text = if (receiptUriString.isNotEmpty()) "Receipt Attached ✅" else "Attach Receipt / Photo",
+                                text = if (isPro) (if (receiptUriString.isNotEmpty()) "Receipt Attached ✅" else "Attach Receipt / Photo") else "Attach Receipt (PRO)",
                                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                                color = MaterialTheme.colorScheme.onSurface
+                                color = if (isPro) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                             )
                             Text(
-                                text = if (receiptUriString.isNotEmpty()) "Tap to change image" else "Bill photo ya receipt jodein",
+                                text = if (isPro) (if (receiptUriString.isNotEmpty()) "Tap to change image" else "Bill photo ya receipt jodein") else "Unlimited photo vault for your bills",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
 
-                    if (receiptUriString.isNotEmpty()) {
+                    if (receiptUriString.isNotEmpty() && isPro) {
                         IconButton(
                             onClick = { receiptUriString = "" },
                             modifier = Modifier.size(28.dp)

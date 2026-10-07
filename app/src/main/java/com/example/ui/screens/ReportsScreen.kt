@@ -12,6 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -33,8 +34,10 @@ import com.example.ui.theme.*
 @Composable
 fun ReportsScreen(
     uiState: DashboardUiState,
+    isPro: Boolean = false,
     onBack: () -> Unit,
     onTimeframeSelected: (ReportsTimeframe) -> Unit,
+    onUpgradeClicked: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Surface(
@@ -71,6 +74,32 @@ fun ReportsScreen(
                 contentPadding = PaddingValues(bottom = 90.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                if (!isPro) {
+                    item {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp)
+                                .clickable { onUpgradeClicked() },
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = BrandOrange.copy(alpha = 0.1f)),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, BrandOrange.copy(alpha = 0.3f))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(imageVector = Icons.Default.Star, contentDescription = null, tint = BrandOrange)
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column {
+                                    Text(text = "Unlock Advanced Insights", fontWeight = FontWeight.Bold, color = BrandOrange)
+                                    Text(text = "Upgrade to PRO for detailed reports and PDF export.", style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // 1. Timeframe Select
                 item {
                     Row(

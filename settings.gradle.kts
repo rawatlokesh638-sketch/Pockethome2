@@ -24,6 +24,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Home Expense Tracker"
+rootProject.name = "Pockethome"
 
 include(":app")

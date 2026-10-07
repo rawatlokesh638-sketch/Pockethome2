@@ -20,14 +20,18 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccessTime
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.Sms
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.TrackChanges
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -53,13 +57,17 @@ import com.example.ui.components.FinancialSummaryCards
 import com.example.ui.components.SpendingTrendChart
 import com.example.ui.components.UpcomingBillsSection
 import com.example.ui.theme.BalanceBlue
+import com.example.ui.theme.BrandOrange
 import com.example.ui.theme.MoneyGreen
 import com.example.ui.theme.PurpleAccent
 import com.example.ui.theme.RoyalBlue
+import com.google.firebase.Firebase
+import com.google.firebase.auth.auth
 
 @Composable
 fun HomeScreen(
     uiState: DashboardUiState,
+    proStatus: com.example.model.ProStatus,
     chartData: List<ChartBarData>,
     currentChartTimeframe: ChartTimeframe,
     onChartTimeframeChanged: (ChartTimeframe) -> Unit,
@@ -81,10 +89,42 @@ fun HomeScreen(
     var showLogoutConfirm by remember { mutableStateOf(false) }
 
     if (showLogoutConfirm) {
+        val isPro = proStatus.isPro || proStatus.status == "ACTIVE"
+        val statusText = when {
+            isPro -> "PRO Member ⭐"
+            proStatus.status == "PENDING" -> "Approval Pending... ⏳"
+            else -> "Free Version"
+        }
+
         AlertDialog(
             onDismissRequest = { showLogoutConfirm = false },
-            title = { Text(text = "Logout") },
-            text = { Text(text = "Are you sure you want to logout from your household account?") },
+            title = { 
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(imageVector = Icons.Default.AccountCircle, contentDescription = null, tint = RoyalBlue)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(text = "Profile & Account")
+                }
+            },
+            text = { 
+                Column {
+                    Text(text = "User: ${uiState.userName}", fontWeight = FontWeight.Bold)
+                    Text(text = "Email: ${Firebase.auth.currentUser?.email ?: "N/A"}", style = MaterialTheme.typography.bodySmall)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = if (isPro) MoneyGreen.copy(alpha = 0.1f) else MaterialTheme.colorScheme.surfaceVariant
+                    ) {
+                        Text(
+                            text = statusText,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            color = if (isPro) MoneyGreen else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(text = "Are you sure you want to logout?")
+                }
+            },
             confirmButton = {
                 TextButton(onClick = {
                     onLogout()
@@ -113,20 +153,25 @@ fun HomeScreen(
             HomeTopHeader(
                 userName = uiState.userName,
                 dateDisplay = uiState.currentDateDisplay,
-                isPro = uiState.isProUser,
+                proStatus = proStatus,
                 onProClicked = onOpenProSheet,
                 onProfileClicked = { showLogoutConfirm = true }
             )
         }
 
-        // 2. Bank SMS & Location Auto-Track Banner
+        // 2. All Transactions SMS Auto-Track Banner
         item(key = "sms_auto_track_banner") {
             AutoTrackSmsCard(
+                isPro = proStatus.isPro || proStatus.status == "ACTIVE",
                 hasSms = uiState.hasSmsPermission,
-                hasLocation = uiState.hasLocationPermission,
-                locationName = uiState.deviceLocation,
                 scannedCount = uiState.scannedSmsCount,
-                onRequestPermissions = onRequestSmsPermissions
+                onRequestPermissions = {
+                    if (proStatus.isPro || proStatus.status == "ACTIVE") {
+                        onRequestSmsPermissions()
+                    } else {
+                        onOpenProSheet()
+                    }
+                }
             )
         }
 
@@ -316,9 +361,8 @@ fun HomeScreen(
 
 @Composable
 private fun AutoTrackSmsCard(
+    isPro: Boolean,
     hasSms: Boolean,
-    hasLocation: Boolean,
-    locationName: String,
     scannedCount: Int,
     onRequestPermissions: () -> Unit
 ) {
@@ -328,9 +372,9 @@ private fun AutoTrackSmsCard(
             .padding(horizontal = 20.dp),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = RoyalBlue.copy(alpha = 0.08f)
+            containerColor = if (isPro) RoyalBlue.copy(alpha = 0.08f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
         ),
-        border = androidx.compose.foundation.BorderStroke(1.dp, RoyalBlue.copy(alpha = 0.3f))
+        border = androidx.compose.foundation.BorderStroke(1.dp, if (isPro) RoyalBlue.copy(alpha = 0.3f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
     ) {
         Column(
             modifier = Modifier
@@ -345,13 +389,13 @@ private fun AutoTrackSmsCard(
                     modifier = Modifier
                         .size(36.dp)
                         .clip(CircleShape)
-                        .background(RoyalBlue.copy(alpha = 0.15f)),
+                        .background(if (isPro) RoyalBlue.copy(alpha = 0.15f) else Color.Gray.copy(alpha = 0.15f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Sms,
+                        imageVector = if (isPro) Icons.Default.Sms else Icons.Default.Lock,
                         contentDescription = "SMS Sync",
-                        tint = RoyalBlue,
+                        tint = if (isPro) RoyalBlue else Color.Gray,
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -359,11 +403,11 @@ private fun AutoTrackSmsCard(
                 Column(modifier = Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = "Auto Bank SMS & Location Sync",
+                            text = if (isPro) "All Transactions SMS Auto-Sync" else "Auto SMS Sync (PRO)",
                             style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.onSurface
+                            color = if (isPro) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                         )
-                        if (hasSms) {
+                        if (hasSms && isPro) {
                             Spacer(modifier = Modifier.width(6.dp))
                             Icon(
                                 imageVector = Icons.Default.CheckCircle,
@@ -374,10 +418,10 @@ private fun AutoTrackSmsCard(
                         }
                     }
                     Text(
-                        text = if (locationName.isNotEmpty()) {
-                            "📍 $locationName • SBI, HDFC, ICICI se auto-track"
+                        text = if (isPro) {
+                            "Bank, UPI, Amazon, Wallets & Cards ke sabhi messages auto-track honge!"
                         } else {
-                            "SBI, HDFC, ICICI & UPI messages se kharche auto-track karein"
+                            "Unlocks automatic tracking for Bank, Amazon, Wallets & Cards."
                         },
                         style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -390,7 +434,9 @@ private fun AutoTrackSmsCard(
             Button(
                 onClick = onRequestPermissions,
                 shape = RoundedCornerShape(10.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (isPro) RoyalBlue else MaterialTheme.colorScheme.secondary
+                ),
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(38.dp)
@@ -398,13 +444,17 @@ private fun AutoTrackSmsCard(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        imageVector = Icons.Default.LocationOn,
-                        contentDescription = "Location",
+                        imageVector = if (isPro) Icons.Default.Sms else Icons.Default.Star,
+                        contentDescription = null,
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = if (hasSms) "Scan & Sync Bank SMS Again ($scannedCount synced)" else "Allow SMS & Location to Auto-Track",
+                        text = if (isPro) {
+                            if (hasSms) "Scan & Sync All SMS ($scannedCount synced)" else "Allow SMS Access to Auto-Track"
+                        } else {
+                            "Upgrade to PRO to Activate"
+                        },
                         style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)
                     )
                 }
@@ -417,10 +467,13 @@ private fun AutoTrackSmsCard(
 private fun HomeTopHeader(
     userName: String,
     dateDisplay: String,
-    isPro: Boolean,
+    proStatus: com.example.model.ProStatus,
     onProClicked: () -> Unit,
     onProfileClicked: () -> Unit
 ) {
+    val isPro = proStatus.isPro || proStatus.status == "ACTIVE"
+    val isPending = proStatus.status == "PENDING"
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -448,8 +501,19 @@ private fun HomeTopHeader(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Surface(
                 shape = RoundedCornerShape(20.dp),
-                color = if (isPro) MoneyGreen.copy(alpha = 0.15f) else RoyalBlue.copy(alpha = 0.12f),
-                border = androidx.compose.foundation.BorderStroke(1.dp, if (isPro) MoneyGreen else RoyalBlue),
+                color = when {
+                    isPro -> MoneyGreen.copy(alpha = 0.15f)
+                    isPending -> BrandOrange.copy(alpha = 0.15f)
+                    else -> RoyalBlue.copy(alpha = 0.12f)
+                },
+                border = androidx.compose.foundation.BorderStroke(
+                    1.dp, 
+                    when {
+                        isPro -> MoneyGreen
+                        isPending -> BrandOrange
+                        else -> RoyalBlue
+                    }
+                ),
                 modifier = Modifier
                     .clickable(onClick = onProClicked)
                     .testTag("open_pro_button")
@@ -459,18 +523,30 @@ private fun HomeTopHeader(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
-                        imageVector = Icons.Default.AutoAwesome,
+                        imageVector = if (isPending) Icons.Default.AccessTime else Icons.Default.AutoAwesome,
                         contentDescription = "Pro",
-                        tint = if (isPro) MoneyGreen else RoyalBlue,
+                        tint = when {
+                            isPro -> MoneyGreen
+                            isPending -> BrandOrange
+                            else -> RoyalBlue
+                        },
                         modifier = Modifier.size(14.dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = if (isPro) "PRO Active ⭐" else "PRO @ ₹25/mo",
+                        text = when {
+                            isPro -> "PRO Active ⭐"
+                            isPending -> "Pending..."
+                            else -> "PRO @ ₹25/mo"
+                        },
                         style = MaterialTheme.typography.labelSmall.copy(
                             fontWeight = FontWeight.Bold,
                             fontSize = 11.sp,
-                            color = if (isPro) MoneyGreen else RoyalBlue
+                            color = when {
+                                isPro -> MoneyGreen
+                                isPending -> BrandOrange
+                                else -> RoyalBlue
+                            }
                         )
                     )
                 }

@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -61,10 +62,12 @@ import java.util.concurrent.TimeUnit
 @Composable
 fun BillsScreen(
     uiState: DashboardUiState,
+    isPro: Boolean = false,
     onBack: () -> Unit,
     onAddBillClicked: () -> Unit,
     onTogglePaid: (String, Boolean) -> Unit,
     onDeleteBill: (String) -> Unit,
+    onUpgradeClicked: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var showUpcomingTab by remember { mutableStateOf(true) }
@@ -228,10 +231,11 @@ fun BillsScreen(
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 20.dp),
+                            .padding(horizontal = 20.dp)
+                            .clickable(!isPro) { onUpgradeClicked() },
                         shape = RoundedCornerShape(16.dp),
                         colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                            containerColor = if (isPro) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
                         )
                     ) {
                         Row(
@@ -241,30 +245,30 @@ fun BillsScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                            Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
                                 Box(
                                     modifier = Modifier
                                         .size(38.dp)
                                         .clip(RoundedCornerShape(10.dp))
-                                        .background(BrandOrange.copy(alpha = 0.15f)),
+                                        .background(if (isPro) BrandOrange.copy(alpha = 0.15f) else Color.Gray.copy(alpha = 0.1f)),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Default.NotificationsActive,
+                                        imageVector = if (isPro) Icons.Default.NotificationsActive else Icons.Default.Lock,
                                         contentDescription = "Notification",
-                                        tint = BrandOrange,
+                                        tint = if (isPro) BrandOrange else Color.Gray,
                                         modifier = Modifier.size(20.dp)
                                     )
                                 }
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Column {
                                     Text(
-                                        text = "Automatic Reminders",
+                                        text = if (isPro) "Automatic Reminders" else "Auto Reminders (PRO)",
                                         style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                                        color = MaterialTheme.colorScheme.onSurface
+                                        color = if (isPro) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                                     )
                                     Text(
-                                        text = "Get notified before due date",
+                                        text = if (isPro) "Get notified before due date" else "Upgrade to PRO for WhatsApp & app alerts",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -272,8 +276,11 @@ fun BillsScreen(
                             }
 
                             Switch(
-                                checked = autoRemindersEnabled,
-                                onCheckedChange = { autoRemindersEnabled = it },
+                                checked = autoRemindersEnabled && isPro,
+                                onCheckedChange = { 
+                                    if (isPro) autoRemindersEnabled = it 
+                                    else onUpgradeClicked()
+                                },
                                 colors = SwitchDefaults.colors(
                                     checkedThumbColor = Color.White,
                                     checkedTrackColor = BrandOrange

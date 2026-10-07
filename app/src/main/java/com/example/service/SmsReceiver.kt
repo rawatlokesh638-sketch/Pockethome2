@@ -16,16 +16,15 @@ class SmsReceiver : BroadcastReceiver() {
             val messages = Telephony.Sms.Intents.getMessagesFromIntent(intent) ?: return
             val repository = ExpenseRepository(context.applicationContext)
             val userId = repository.getActiveUserId()
-            val locationName = SmsParser.getDeviceLocationName(context)
 
             for (sms in messages) {
                 val body = sms.messageBody ?: continue
                 val sender = sms.originatingAddress ?: "Unknown"
                 val timestamp = sms.timestampMillis
 
-                val tx = SmsParser.parseSmsBody(body, sender, timestamp, userId, locationName)
+                val tx = SmsParser.parseSmsBody(body, sender, timestamp, userId)
                 if (tx != null) {
-                    Log.d("SmsReceiver", "Auto-detected incoming bank transaction: ${tx.title} of ₹${tx.amount}")
+                    Log.d("SmsReceiver", "Auto-detected transaction: ${tx.title} of ₹${tx.amount}")
                     repository.saveTransaction(tx)
                 }
             }

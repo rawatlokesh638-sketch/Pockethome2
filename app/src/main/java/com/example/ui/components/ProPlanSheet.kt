@@ -62,16 +62,36 @@ import com.example.ui.theme.MoneyGreen
 import com.example.ui.theme.PurpleAccent
 import com.example.ui.theme.RoyalBlue
 
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.filled.AccessTime
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Paid
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
+import com.example.model.ProStatus
+import com.example.ui.theme.BgLight
+import com.example.ui.theme.BrandOrange
+import com.example.ui.theme.MoneyGreen
+import com.example.ui.theme.PurpleAccent
+import com.example.ui.theme.RoyalBlue
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProPlanSheet(
-    isCurrentlyPro: Boolean,
+    proStatus: ProStatus,
+    isLoading: Boolean = false,
     onDismiss: () -> Unit,
-    onUpgradeSuccess: () -> Unit
+    onSubmitRequest: (String, String) -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var selectedPlanPeriod by remember { mutableStateOf("MONTHLY") } // MONTHLY or YEARLY
-    var isUpgraded by remember { mutableStateOf(isCurrentlyPro) }
+    
+    var txnId by remember { mutableStateOf("") }
+    var utrNumber by remember { mutableStateOf("") }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -105,7 +125,7 @@ fun ProPlanSheet(
                     Spacer(modifier = Modifier.width(10.dp))
                     Column {
                         Text(
-                            text = "PocketHome PRO ✨",
+                            text = "Pockethome PRO ✨",
                             style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
                             color = MaterialTheme.colorScheme.onSurface
                         )
@@ -124,97 +144,30 @@ fun ProPlanSheet(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Pricing Banner Card (Only ₹25 / month)
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(18.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = RoyalBlue.copy(alpha = 0.08f)
-                ),
-                border = androidx.compose.foundation.BorderStroke(2.dp, RoyalBlue.copy(alpha = 0.35f))
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(18.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(RoyalBlue)
-                            .padding(horizontal = 12.dp, vertical = 4.dp)
-                    ) {
-                        Text(
-                            text = "AFFORDABLE FAMILY PLAN",
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 10.sp,
-                                color = Color.White
-                            )
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    Row(
-                        verticalAlignment = Alignment.Bottom,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        Text(
-                            text = if (selectedPlanPeriod == "MONTHLY") "₹25" else "₹249",
-                            style = MaterialTheme.typography.headlineLarge.copy(
-                                fontWeight = FontWeight.ExtraBold,
-                                fontSize = 38.sp,
-                                color = RoyalBlue
-                            )
-                        )
-                        Text(
-                            text = if (selectedPlanPeriod == "MONTHLY") " / month" else " / year (₹20/mo)",
-                            style = MaterialTheme.typography.titleMedium.copy(
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            ),
-                            modifier = Modifier.padding(bottom = 6.dp)
-                        )
-                    }
-
-                    Text(
-                        text = "☕ Ek chai ke daam mein pura ghar ka digital hisaab!",
-                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
-                        color = MaterialTheme.colorScheme.onSurface
+            when (proStatus.status) {
+                "ACTIVE" -> {
+                    ProActiveSection(onDismiss)
+                }
+                "PENDING" -> {
+                    ProPendingSection(onDismiss)
+                }
+                else -> {
+                    ProPaymentForm(
+                        selectedPlanPeriod = selectedPlanPeriod,
+                        onPeriodChange = { selectedPlanPeriod = it },
+                        txnId = txnId,
+                        onTxnIdChange = { txnId = it },
+                        utrNumber = utrNumber,
+                        onUtrNumberChange = { utrNumber = it },
+                        onSubmit = { onSubmitRequest(txnId, utrNumber) },
+                        isLoading = isLoading
                     )
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    // Billing Plan Switcher
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(MaterialTheme.colorScheme.surface)
-                            .padding(4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        PlanOptionPill(
-                            title = "Monthly @ ₹25/mo",
-                            selected = selectedPlanPeriod == "MONTHLY",
-                            onClick = { selectedPlanPeriod = "MONTHLY" },
-                            modifier = Modifier.weight(1f)
-                        )
-                        PlanOptionPill(
-                            title = "Yearly @ ₹249/yr (Save 17%)",
-                            selected = selectedPlanPeriod == "YEARLY",
-                            onClick = { selectedPlanPeriod = "YEARLY" },
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
                 }
             }
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // Pro Features List (What users get for ₹25)
+            // Pro Features List
             Text(
                 text = "Everything Included in PRO (₹25/mo)",
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
@@ -226,8 +179,8 @@ fun ProPlanSheet(
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 ProFeatureItem(
                     icon = Icons.Default.Sms,
-                    title = "Auto SMS Bank Sync",
-                    desc = "HDFC, SBI, ICICI, Axis, Paytm, PhonePe SMS se kharche automatically jud jate hain."
+                    title = "Auto All Transaction SMS Sync",
+                    desc = "Bank, Amazon, Wallets, Credit Cards, UPI, Swiggy, Zomato ke sabhi SMS se kharche/aay automatically jud jate hain."
                 )
                 ProFeatureItem(
                     icon = Icons.Default.Description,
@@ -261,37 +214,225 @@ fun ProPlanSheet(
                 )
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(32.dp))
+        }
+    }
+}
 
-            // Action Button
+@Composable
+private fun ProActiveSection(onDismiss: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MoneyGreen.copy(alpha = 0.1f)),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MoneyGreen.copy(alpha = 0.3f))
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Icon(imageVector = Icons.Default.CloudDone, contentDescription = "Active", tint = MoneyGreen, modifier = Modifier.size(48.dp))
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = "Membership Active! 🎉",
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                color = MoneyGreen
+            )
+            Text(
+                text = "Aap ab PRO features ka anand le sakte hain. Agla recharge ek mahine baad karein.",
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.Center,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(16.dp))
             Button(
-                onClick = {
-                    isUpgraded = true
-                    onUpgradeSuccess()
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp)
-                    .testTag("activate_pro_button"),
-                shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (isUpgraded) MoneyGreen else RoyalBlue
-                )
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = MoneyGreen),
+                shape = RoundedCornerShape(12.dp)
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(imageVector = Icons.Default.Star, contentDescription = "Star", tint = Color.White)
-                    Spacer(modifier = Modifier.width(8.dp))
+                Text("Awesome!")
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProPendingSection(onDismiss: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = BrandOrange.copy(alpha = 0.1f)),
+        border = androidx.compose.foundation.BorderStroke(1.dp, BrandOrange.copy(alpha = 0.3f))
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Icon(imageVector = Icons.Default.AccessTime, contentDescription = "Pending", tint = BrandOrange, modifier = Modifier.size(48.dp))
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = "Approval Pending... ⏳",
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                color = BrandOrange
+            )
+            Text(
+                text = "Aapka payment request humein mil gaya hai. Admin team verify karke jald hi activate kar degi.",
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.Center,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Button(
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = BrandOrange),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text("Got it, Thanks!")
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProPaymentForm(
+    selectedPlanPeriod: String,
+    onPeriodChange: (String) -> Unit,
+    txnId: String,
+    onTxnIdChange: (String) -> Unit,
+    utrNumber: String,
+    onUtrNumberChange: (String) -> Unit,
+    onSubmit: () -> Unit,
+    isLoading: Boolean
+) {
+    Column {
+        // Pricing Banner Card
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(18.dp),
+            colors = CardDefaults.cardColors(containerColor = RoyalBlue.copy(alpha = 0.08f)),
+            border = androidx.compose.foundation.BorderStroke(2.dp, RoyalBlue.copy(alpha = 0.35f))
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(18.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Box(
+                    modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(RoyalBlue).padding(horizontal = 12.dp, vertical = 4.dp)
+                ) {
                     Text(
-                        text = if (isUpgraded) "PRO Active! (Enjoy Features) ✅" else "Activate PRO @ ₹25/month",
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
+                        text = "AFFORDABLE FAMILY PLAN",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 10.sp, color = Color.White)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.Center) {
+                    Text(
+                        text = if (selectedPlanPeriod == "MONTHLY") "₹25" else "₹249",
+                        style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.ExtraBold, fontSize = 38.sp, color = RoyalBlue)
+                    )
+                    Text(
+                        text = if (selectedPlanPeriod == "MONTHLY") " / month" else " / year (₹20/mo)",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant),
+                        modifier = Modifier.padding(bottom = 6.dp)
+                    )
+                }
+
+                Text(
+                    text = "☕ Ek chai ke daam mein pura ghar ka digital hisaab!",
+                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surface).padding(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    PlanOptionPill(
+                        title = "Monthly @ ₹25/mo",
+                        selected = selectedPlanPeriod == "MONTHLY",
+                        onClick = { onPeriodChange("MONTHLY") },
+                        modifier = Modifier.weight(1f)
+                    )
+                    PlanOptionPill(
+                        title = "Yearly @ ₹249/yr (Save 17%)",
+                        selected = selectedPlanPeriod == "YEARLY",
+                        onClick = { onPeriodChange("YEARLY") },
+                        modifier = Modifier.weight(1f)
                     )
                 }
             }
+        }
 
-            Spacer(modifier = Modifier.height(28.dp))
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // Payment Instructions
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(imageVector = Icons.Default.Paid, contentDescription = null, tint = RoyalBlue)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(text = "Payment Instructions", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold))
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "1. PhonePe pe ₹25 transfer karein: 9050884894\n2. Transfer ke baad Txn ID aur UTR number yahan enter karein.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Input Fields
+        OutlinedTextField(
+            value = txnId,
+            onValueChange = onTxnIdChange,
+            label = { Text("Transaction ID") },
+            placeholder = { Text("Enter PhonePe Txn ID") },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            singleLine = true,
+            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RoyalBlue)
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        OutlinedTextField(
+            value = utrNumber,
+            onValueChange = onUtrNumberChange,
+            label = { Text("UTR Number") },
+            placeholder = { Text("12-digit UTR number") },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RoyalBlue)
+        )
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        Button(
+            onClick = onSubmit,
+            enabled = txnId.isNotBlank() && utrNumber.isNotBlank() && !isLoading,
+            modifier = Modifier.fillMaxWidth().height(52.dp),
+            shape = RoundedCornerShape(14.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue)
+        ) {
+            if (isLoading) {
+                CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White, strokeWidth = 2.dp)
+            } else {
+                Text(text = "Submit Request for Approval", fontWeight = FontWeight.Bold)
+            }
         }
     }
 }

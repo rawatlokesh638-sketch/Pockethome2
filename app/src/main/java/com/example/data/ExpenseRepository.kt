@@ -5,6 +5,8 @@ import android.content.SharedPreferences
 import android.util.Log
 import com.example.model.Bill
 import com.example.model.Budget
+import com.example.model.ProRequest
+import com.example.model.ProStatus
 import com.example.model.Transaction
 import com.google.firebase.Firebase
 import com.google.firebase.FirebaseApp
@@ -35,6 +37,7 @@ class ExpenseRepository(private val context: Context) {
         Types.newParameterizedType(List::class.java, Bill::class.java)
     )
     private val budgetAdapter = moshi.adapter(Budget::class.java)
+    private val proStatusAdapter = moshi.adapter(ProStatus::class.java)
 
     private val prefs: SharedPreferences =
         context.getSharedPreferences("pocket_home_prefs", Context.MODE_PRIVATE)
@@ -55,10 +58,12 @@ class ExpenseRepository(private val context: Context) {
     private val _localTransactions = MutableStateFlow<List<Transaction>>(emptyList())
     private val _localBills = MutableStateFlow<List<Bill>>(emptyList())
     private val _localBudget = MutableStateFlow(Budget())
+    private val _localProStatus = MutableStateFlow(ProStatus())
 
     private var txListener: ValueEventListener? = null
     private var billListener: ValueEventListener? = null
     private var budgetListener: ValueEventListener? = null
+    private var proStatusListener: ValueEventListener? = null
 
     init {
         ensureFirebaseInitialized()
@@ -70,6 +75,7 @@ class ExpenseRepository(private val context: Context) {
             _localTransactions.value = emptyList()
             _localBills.value = emptyList()
             _localBudget.value = Budget()
+            _localProStatus.value = ProStatus()
         }
     }
 
@@ -124,6 +130,7 @@ class ExpenseRepository(private val context: Context) {
         _localTransactions.value = emptyList()
         _localBills.value = emptyList()
         _localBudget.value = Budget()
+        _localProStatus.value = ProStatus()
     }
 
     private fun detachRtdbListeners() {
@@ -132,12 +139,14 @@ class ExpenseRepository(private val context: Context) {
             val userRef = database.reference.child("users").child(currentUserId)
             txListener?.let { userRef.child("transactions").removeEventListener(it) }
             billListener?.let { userRef.child("bills").removeEventListener(it) }
+            proStatusListener?.let { userRef.child("pro_status").removeEventListener(it) }
             val currentMonthStr = SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(Date())
             budgetListener?.let { userRef.child("budgets").child(currentMonthStr).removeEventListener(it) }
         }
         txListener = null
         billListener = null
         budgetListener = null
+        proStatusListener = null
     }
 
     private fun loadLocalCacheForUser(userId: String) {
@@ -156,6 +165,14 @@ class ExpenseRepository(private val context: Context) {
                 _localBills.value = list
             } else {
                 _localBills.value = emptyList()
+            }
+
+            val proStatusJson = prefs.getString("cached_pro_status_$userId", null)
+            if (!proStatusJson.isNullOrEmpty()) {
+                val ps = proStatusAdapter.fromJson(proStatusJson) ?: ProStatus()
+                _localProStatus.value = ps
+            } else {
+                _localProStatus.value = ProStatus()
             }
 
             val currentMonthStr = SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(Date())
@@ -201,6 +218,16 @@ class ExpenseRepository(private val context: Context) {
             prefs.edit().putString(key, budgetAdapter.toJson(budget)).apply()
         } catch (e: Throwable) {
             Log.e("ExpenseRepo", "Error persisting budget", e)
+        }
+    }
+
+    private fun persistLocalProStatus(userId: String, proStatus: ProStatus) {
+        _localProStatus.value = proStatus
+        try {
+            val key = if (userId.isNotEmpty()) "cached_pro_status_$userId" else "cached_pro_status"
+            prefs.edit().putString(key, proStatusAdapter.toJson(proStatus)).apply()
+        } catch (e: Throwable) {
+            Log.e("ExpenseRepo", "Error persisting pro status", e)
         }
     }
 
@@ -279,6 +306,29 @@ class ExpenseRepository(private val context: Context) {
             }
         }
         userRef.child("budgets").child(currentMonthStr).addValueEventListener(budgetListener!!)
+
+        // Pro Status Listener
+        proStatusListener?.let { userRef.child("pro_status").removeEventListener(it) }
+        proStatusListener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                if (snapshot.exists()) {
+                    try {
+                        snapshot.getValue(ProStatus::class.java)?.let { ps ->
+                            val updatedPs = if (ps.status == "ACTIVE" || ps.isPro) ps.copy(isPro = true) else ps
+                            persistLocalProStatus(userId, updatedPs)
+                        }
+                    } catch (e: Exception) {
+                        Log.e("ExpenseRepo", "Error parsing pro status", e)
+                    }
+                } else {
+                    persistLocalProStatus(userId, ProStatus())
+                }
+            }
+            override fun onCancelled(error: DatabaseError) {
+                Log.w("ExpenseRepo", "RTDB pro status listen cancelled: ${error.message}")
+            }
+        }
+        userRef.child("pro_status").addValueEventListener(proStatusListener!!)
     }
 
     fun observeTransactions(userId: String = ""): Flow<List<Transaction>> {
@@ -291,6 +341,10 @@ class ExpenseRepository(private val context: Context) {
 
     fun observeBudget(userId: String = "", month: String = ""): Flow<Budget> {
         return _localBudget.asStateFlow()
+    }
+
+    fun observeProStatus(userId: String = ""): Flow<ProStatus> {
+        return _localProStatus.asStateFlow()
     }
 
     fun saveTransaction(transaction: Transaction, onSuccess: () -> Unit = {}, onFailure: (Exception) -> Unit = {}) {
@@ -373,6 +427,24 @@ class ExpenseRepository(private val context: Context) {
         persistLocalBudget(userId, data)
         onSuccess()
         rtdb?.reference?.child("users")?.child(userId)?.child("budgets")?.child(currentMonthStr)?.setValue(data)
+    }
+
+    fun submitProRequest(request: ProRequest, onSuccess: () -> Unit = {}, onFailure: (Exception) -> Unit = {}) {
+        val db = rtdb ?: return
+        val userId = request.userId.ifEmpty { getActiveUserId() }
+        val data = request.copy(userId = userId)
+
+        // 1. Submit to pro_requests (for admin panel)
+        db.reference.child("pro_requests").child(userId).setValue(data)
+            .addOnSuccessListener {
+                // 2. Update user's pro_status to PENDING
+                db.reference.child("users").child(userId).child("pro_status").updateChildren(
+                    mapOf("status" to "PENDING", "requestedAt" to System.currentTimeMillis())
+                ).addOnSuccessListener {
+                    onSuccess()
+                }.addOnFailureListener { onFailure(it) }
+            }
+            .addOnFailureListener { onFailure(it) }
     }
 
     fun clearAllData(userId: String, onComplete: () -> Unit = {}) {

@@ -70,6 +70,24 @@ data class Budget(
     val categoryBudgets: Map<String, Double> = emptyMap()
 )
 
+data class ProStatus(
+    val isPro: Boolean = false,
+    val status: String = "NONE", // NONE, PENDING, ACTIVE
+    val expiryDate: String = "",
+    val requestedAt: Long = 0
+)
+
+data class ProRequest(
+    val userId: String = "",
+    val userEmail: String = "",
+    val userName: String = "",
+    val txnId: String = "",
+    val utrNumber: String = "",
+    val amount: String = "25",
+    val requestedAt: Long = System.currentTimeMillis(),
+    val status: String = "PENDING" // PENDING, APPROVED, REJECTED
+)
+
 data class ExpenseCategoryInfo(
     val id: String,
     val name: String,

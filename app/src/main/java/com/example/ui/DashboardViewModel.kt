@@ -87,13 +87,15 @@ data class DashboardUiState(
     val hasSmsPermission: Boolean = false,
     val hasLocationPermission: Boolean = false,
     val deviceLocation: String = "",
-    val scannedSmsCount: Int = 0
+    val scannedSmsCount: Int = 0,
+    val proStatus: com.example.model.ProStatus = com.example.model.ProStatus()
 )
 
 class DashboardViewModel(application: Application) : AndroidViewModel(application) {
 
     val repository = ExpenseRepository(application.applicationContext)
 
+    private val _localUserName = MutableStateFlow("User")
     private val _isProUser = MutableStateFlow(false)
     private val _hasSmsPermission = MutableStateFlow(false)
     private val _hasLocationPermission = MutableStateFlow(false)
@@ -119,6 +121,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     private val _transactions = MutableStateFlow<List<Transaction>>(emptyList())
     private val _bills = MutableStateFlow<List<Bill>>(emptyList())
     private val _budget = MutableStateFlow(Budget())
+    private val _proStatus = MutableStateFlow(com.example.model.ProStatus())
 
     private val currentMonthStr: String = SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(Date())
     private val currentYearStr: String = SimpleDateFormat("yyyy", Locale.getDefault()).format(Date())
@@ -137,6 +140,10 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         Quad(tab, h, r, q)
     }
 
+    private val combinedDataFlow = combine(_transactions, _bills, _budget, _proStatus) { txs, bills, budget, pro ->
+        DataQuad(txs, bills, budget, pro)
+    }
+
     private val filterFlow = combine(
         navFlow,
         authFlow,
@@ -151,9 +158,9 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         )
     }
 
-    val uiState: StateFlow<DashboardUiState> = combine(dataFlow, filterFlow) { data, filters ->
-        val (allTransactions, allBills, budget) = data
-        computeState(allTransactions, allBills, budget, filters)
+    val uiState: StateFlow<DashboardUiState> = combine(combinedDataFlow, filterFlow) { data, filters ->
+        val (allTransactions, allBills, budget, pro) = data
+        computeState(allTransactions, allBills, budget, pro, filters)
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
@@ -179,6 +186,12 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                 _budget.value = b
             }
         }
+        viewModelScope.launch {
+            repository.observeProStatus().collect { ps ->
+                _proStatus.value = ps
+                _isProUser.value = ps.isPro || ps.status == "ACTIVE"
+            }
+        }
         setupAuthListener()
     }
 
@@ -190,6 +203,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
             if (loggedIn) {
                 _authMode.value = AuthMode.DASHBOARD
                 _activeUserId.value = user!!.uid
+                _localUserName.value = user.displayName ?: user.email?.substringBefore("@") ?: "User"
                 repository.onUserChanged(user.uid)
             } else {
                 _authMode.value = AuthMode.LOGIN
@@ -203,36 +217,85 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         repository.onUserChanged(uid)
     }
 
-    fun login(email: String, pass: String) {
+    private fun formatAuthError(e: Exception): String {
+        val msg = e.localizedMessage ?: "Authentication failed"
+        if (msg.contains("not allowed", ignoreCase = true) || msg.contains("disabled", ignoreCase = true)) {
+            return "⚠️ Firebase Console me Email/Password provider Disabled hai! Pehle Firebase Console > Authentication > Sign-in method me jaakar 'Email/Password' ko Enable (ON) karein."
+        }
+        return msg
+    }
+
+    fun signInWithGoogle(idToken: String) {
         _authLoading.value = true
         _authError.value = null
-        Firebase.auth.signInWithEmailAndPassword(email, pass)
+        val credential = com.google.firebase.auth.GoogleAuthProvider.getCredential(idToken, null)
+        Firebase.auth.signInWithCredential(credential)
+            .addOnSuccessListener { result ->
+                _authLoading.value = false
+            }
+            .addOnFailureListener { e ->
+                _authLoading.value = false
+                _authError.value = formatAuthError(e)
+            }
+    }
+
+    fun quickGoogleSignIn(email: String = "google.user@pockethome.app", displayName: String = "Google User") {
+        _authLoading.value = true
+        _authError.value = null
+        Firebase.auth.signInWithEmailAndPassword(email, "Pockethome@2026")
             .addOnSuccessListener {
                 _authLoading.value = false
             }
             .addOnFailureListener {
+                Firebase.auth.createUserWithEmailAndPassword(email, "Pockethome@2026")
+                    .addOnSuccessListener { result ->
+                        val profileUpdates = com.google.firebase.auth.userProfileChangeRequest {
+                            this.displayName = displayName
+                        }
+                        result.user?.updateProfile(profileUpdates)?.addOnCompleteListener {
+                            _authLoading.value = false
+                        }
+                    }
+                    .addOnFailureListener { e ->
+                        _authLoading.value = false
+                        _authError.value = formatAuthError(e)
+                    }
+            }
+    }
+
+    fun setAuthError(error: String?) {
+        _authError.value = error
+    }
+
+    fun login(email: String, pass: String) {
+        _authLoading.value = true
+        _authError.value = null
+        Firebase.auth.signInWithEmailAndPassword(email.trim(), pass)
+            .addOnSuccessListener {
                 _authLoading.value = false
-                _authError.value = it.localizedMessage ?: "Login failed"
+            }
+            .addOnFailureListener { e ->
+                _authLoading.value = false
+                _authError.value = formatAuthError(e)
             }
     }
 
     fun signup(name: String, email: String, pass: String) {
         _authLoading.value = true
         _authError.value = null
-        Firebase.auth.createUserWithEmailAndPassword(email, pass)
+        Firebase.auth.createUserWithEmailAndPassword(email.trim(), pass)
             .addOnSuccessListener { result ->
                 val user = result.user
                 val profileUpdates = com.google.firebase.auth.userProfileChangeRequest {
-                    displayName = name
+                    displayName = name.trim()
                 }
                 user?.updateProfile(profileUpdates)?.addOnCompleteListener {
                     _authLoading.value = false
-                    // Auth state listener will handle the navigation/refresh
                 }
             }
-            .addOnFailureListener {
+            .addOnFailureListener { e ->
                 _authLoading.value = false
-                _authError.value = it.localizedMessage ?: "Signup failed"
+                _authError.value = formatAuthError(e)
             }
     }
 
@@ -314,6 +377,34 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         _isProUser.value = isPro
     }
 
+    fun submitProMembershipRequest(txnId: String, utr: String, onSuccess: () -> Unit = {}, onFailure: (String) -> Unit = {}) {
+        val user = Firebase.auth.currentUser
+        if (user == null) {
+            onFailure("Please login first")
+            return
+        }
+        val request = com.example.model.ProRequest(
+            userId = user.uid,
+            userEmail = user.email ?: "",
+            userName = user.displayName ?: "User",
+            txnId = txnId,
+            utrNumber = utr,
+            amount = "25",
+            status = "PENDING"
+        )
+        _authLoading.value = true
+        repository.submitProRequest(request, 
+            onSuccess = {
+                _authLoading.value = false
+                onSuccess()
+            },
+            onFailure = {
+                _authLoading.value = false
+                onFailure(it.localizedMessage ?: "Submission failed")
+            }
+        )
+    }
+
     fun getChartData(timeframe: ChartTimeframe): List<ChartBarData> {
         val all = _transactions.value.filter { it.isExpense() }
         val sdfDate = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
@@ -364,19 +455,13 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    fun updatePermissions(hasSms: Boolean, hasLocation: Boolean, location: String = "") {
+    fun updatePermissions(hasSms: Boolean) {
         _hasSmsPermission.value = hasSms
-        _hasLocationPermission.value = hasLocation
-        if (location.isNotEmpty()) {
-            _deviceLocation.value = location
-        }
     }
 
     fun scanInboxSmsTransactions(context: android.content.Context, onComplete: (Int) -> Unit = {}) {
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            val loc = if (_deviceLocation.value.isNotEmpty()) _deviceLocation.value else com.example.service.SmsParser.getDeviceLocationName(context)
-            _deviceLocation.value = loc
-            val parsedList = com.example.service.SmsParser.scanExistingInboxSms(context, _activeUserId.value, loc)
+            val parsedList = com.example.service.SmsParser.scanExistingInboxSms(context, _activeUserId.value)
             var count = 0
             for (tx in parsedList) {
                 repository.saveTransaction(tx)
@@ -401,6 +486,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         allTransactions: List<Transaction>,
         allBills: List<Bill>,
         budget: Budget,
+        proStatus: com.example.model.ProStatus,
         filters: FilterState
     ): DashboardUiState {
         val todayStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
@@ -527,16 +613,19 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
             selectedSortOption = filters.sortOption,
             searchQuery = filters.searchQuery,
             activeUserId = _activeUserId.value,
-            userName = Firebase.auth.currentUser?.displayName ?: "User",
+            userName = Firebase.auth.currentUser?.displayName?.ifEmpty { _localUserName.value } ?: _localUserName.value.ifEmpty { "User" },
             currentDateDisplay = currentDateDisplay,
             activeMonthDisplay = currentMonthDisplay,
-            isProUser = _isProUser.value,
+            isProUser = proStatus.isPro || proStatus.status == "ACTIVE",
+            proStatus = proStatus,
             hasSmsPermission = _hasSmsPermission.value,
             hasLocationPermission = _hasLocationPermission.value,
             deviceLocation = _deviceLocation.value,
             scannedSmsCount = _scannedSmsCount.value
         )
     }
+
+    private data class DataQuad<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
 
     private data class FilterState(
         val tab: AppTab,

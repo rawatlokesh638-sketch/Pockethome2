@@ -23,6 +23,7 @@ import com.example.ui.components.ChartTimeframe
 import com.example.ui.components.EditBudgetDialog
 import com.example.ui.components.PocketHomeBottomBar
 import com.example.ui.components.ProPlanSheet
+import com.example.ui.components.SmartAddBottomSheet
 import com.example.ui.screens.*
 import kotlinx.coroutines.launch
 
@@ -39,32 +40,32 @@ fun DashboardScreen(
     var showAddExpenseScreen by remember { mutableStateOf(false) }
     var editingTransaction by remember { mutableStateOf<Transaction?>(null) }
 
+    var showSmartAddSheet by remember { mutableStateOf(false) }
     var showAddIncomeSheet by remember { mutableStateOf(false) }
     var showAddBillSheet by remember { mutableStateOf(false) }
     var showEditBudgetDialog by remember { mutableStateOf(false) }
     var showProPlanSheet by remember { mutableStateOf(false) }
     var currentChartTimeframe by remember { mutableStateOf(ChartTimeframe.DAILY) }
 
-    // Runtime Permission Launcher for SMS and Location
+    // Runtime Permission Launcher for SMS
     val permissionsLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { permissionsMap ->
-        val smsGranted = permissionsMap[Manifest.permission.READ_SMS] == true
-        val locationGranted = permissionsMap[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
-                permissionsMap[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        val smsGranted = permissionsMap[Manifest.permission.READ_SMS] == true ||
+                permissionsMap[Manifest.permission.RECEIVE_SMS] == true
 
-        viewModel.updatePermissions(hasSms = smsGranted, hasLocation = locationGranted)
+        viewModel.updatePermissions(hasSms = smsGranted)
 
         if (smsGranted) {
             scope.launch {
-                snackbarHostState.showSnackbar("Scanning Bank SMS inbox... ⏳")
+                snackbarHostState.showSnackbar("Scanning SMS inbox... ⏳")
             }
             viewModel.scanInboxSmsTransactions(context) { count ->
                 scope.launch {
                     val msg = if (count > 0) {
-                        "Synced $count transactions from Bank SMS! 💳"
+                        "Synced $count transactions from SMS messages! 💳"
                     } else {
-                        "SMS scanned! No new bank debits found. Future SMS will auto-sync."
+                        "SMS scanned! No transaction messages found. Future SMS will auto-sync."
                     }
                     snackbarHostState.showSnackbar(msg)
                 }
@@ -94,6 +95,8 @@ fun DashboardScreen(
                 LoginScreen(
                     onLogin = { e, p -> viewModel.login(email = e, pass = p) },
                     onNavigateToSignup = { viewModel.setAuthMode(AuthMode.SIGNUP) },
+                    onGoogleSignIn = { token -> viewModel.signInWithGoogle(token) },
+                    onQuickGoogleSignIn = { viewModel.quickGoogleSignIn() },
                     isLoading = uiState.authLoading,
                     errorMessage = uiState.authError
                 )
@@ -102,6 +105,8 @@ fun DashboardScreen(
                 SignupScreen(
                     onSignup = { n, e, p -> viewModel.signup(name = n, email = e, pass = p) },
                     onNavigateToLogin = { viewModel.setAuthMode(AuthMode.LOGIN) },
+                    onGoogleSignIn = { token -> viewModel.signInWithGoogle(token) },
+                    onQuickGoogleSignIn = { viewModel.quickGoogleSignIn() },
                     isLoading = uiState.authLoading,
                     errorMessage = uiState.authError
                 )
@@ -110,6 +115,7 @@ fun DashboardScreen(
                 if (showAddExpenseScreen) {
                     AddExpenseScreen(
                         editingTransaction = editingTransaction,
+                        isPro = uiState.isProUser,
                         onBack = {
                             showAddExpenseScreen = false
                             editingTransaction = null
@@ -122,7 +128,8 @@ fun DashboardScreen(
                             }
                             showAddExpenseScreen = false
                             editingTransaction = null
-                        }
+                        },
+                        onUpgradeClicked = { showProPlanSheet = true }
                     )
                 } else {
                     Scaffold(
@@ -133,7 +140,8 @@ fun DashboardScreen(
                         bottomBar = {
                             PocketHomeBottomBar(
                                 currentTab = uiState.activeTab,
-                                onTabSelected = { viewModel.selectTab(it) }
+                                onTabSelected = { viewModel.selectTab(it) },
+                                onAddClicked = { showSmartAddSheet = true }
                             )
                         }
                     ) { innerPadding ->
@@ -147,6 +155,7 @@ fun DashboardScreen(
                                     AppTab.HOME -> {
                                         HomeScreen(
                                             uiState = uiState,
+                                            proStatus = uiState.proStatus,
                                             chartData = viewModel.getChartData(currentChartTimeframe),
                                             currentChartTimeframe = currentChartTimeframe,
                                             onChartTimeframeChanged = { currentChartTimeframe = it },
@@ -170,9 +179,7 @@ fun DashboardScreen(
                                                 permissionsLauncher.launch(
                                                     arrayOf(
                                                         Manifest.permission.READ_SMS,
-                                                        Manifest.permission.RECEIVE_SMS,
-                                                        Manifest.permission.ACCESS_FINE_LOCATION,
-                                                        Manifest.permission.ACCESS_COARSE_LOCATION
+                                                        Manifest.permission.RECEIVE_SMS
                                                     )
                                                 )
                                             },
@@ -231,14 +238,17 @@ fun DashboardScreen(
                                     AppTab.REPORTS -> {
                                         ReportsScreen(
                                             uiState = uiState,
+                                            isPro = uiState.isProUser,
                                             onBack = { viewModel.selectTab(AppTab.HOME) },
-                                            onTimeframeSelected = { viewModel.setReportsTimeframe(it) }
+                                            onTimeframeSelected = { viewModel.setReportsTimeframe(it) },
+                                            onUpgradeClicked = { showProPlanSheet = true }
                                         )
                                     }
 
                                     AppTab.BILLS -> {
                                         BillsScreen(
                                             uiState = uiState,
+                                            isPro = uiState.isProUser,
                                             onBack = { viewModel.selectTab(AppTab.HOME) },
                                             onAddBillClicked = { showAddBillSheet = true },
                                             onTogglePaid = { billId, status ->
@@ -253,7 +263,8 @@ fun DashboardScreen(
                                                 scope.launch {
                                                     snackbarHostState.showSnackbar("Bill deleted.")
                                                 }
-                                            }
+                                            },
+                                            onUpgradeClicked = { showProPlanSheet = true }
                                         )
                                     }
 
@@ -335,16 +346,60 @@ fun DashboardScreen(
         )
     }
 
+    if (showSmartAddSheet) {
+        SmartAddBottomSheet(
+            userId = uiState.activeUserId,
+            onDismiss = { showSmartAddSheet = false },
+            onSaveTransaction = { tx ->
+                viewModel.addOrUpdateTransaction(tx)
+                scope.launch {
+                    val label = if (tx.isIncome()) "Income added: ${tx.title} (+${DashboardViewModel.formatCurrency(tx.amount)}) 💰"
+                    else "Expense added: ${tx.title} (${DashboardViewModel.formatCurrency(tx.amount)}) 💸"
+                    snackbarHostState.showSnackbar(label)
+                }
+                showSmartAddSheet = false
+            },
+            onSaveBill = { bill ->
+                viewModel.addOrUpdateBill(bill)
+                scope.launch {
+                    snackbarHostState.showSnackbar("Bill added: ${bill.title} (${DashboardViewModel.formatCurrency(bill.amount)}) Due on ${bill.dueDate} 🧾")
+                }
+                showSmartAddSheet = false
+            },
+            onOpenManualExpense = {
+                editingTransaction = null
+                showAddExpenseScreen = true
+            },
+            onOpenManualIncome = {
+                showAddIncomeSheet = true
+            },
+            onOpenManualBill = {
+                showAddBillSheet = true
+            }
+        )
+    }
+
     if (showProPlanSheet) {
         ProPlanSheet(
-            isCurrentlyPro = uiState.isProUser,
+            proStatus = uiState.proStatus,
+            isLoading = uiState.authLoading,
             onDismiss = { showProPlanSheet = false },
-            onUpgradeSuccess = {
-                viewModel.setProUser(true)
-                showProPlanSheet = false
-                scope.launch {
-                    snackbarHostState.showSnackbar("Welcome to PocketHome PRO! ⭐ All features unlocked.")
-                }
+            onSubmitRequest = { txn, utr ->
+                viewModel.submitProMembershipRequest(
+                    txnId = txn,
+                    utr = utr,
+                    onSuccess = {
+                        scope.launch {
+                            snackbarHostState.showSnackbar("Payment request submitted! Admin jald hi approve kar denge. ⏳")
+                        }
+                        showProPlanSheet = false
+                    },
+                    onFailure = { error ->
+                        scope.launch {
+                            snackbarHostState.showSnackbar("Error: $error")
+                        }
+                    }
+                )
             }
         )
     }
