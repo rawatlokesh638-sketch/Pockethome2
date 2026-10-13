@@ -85,7 +85,7 @@ fun ProPlanSheet(
     proStatus: ProStatus,
     isLoading: Boolean = false,
     onDismiss: () -> Unit,
-    onSubmitRequest: (String, String) -> Unit
+    onSubmitRequest: (String, String, String) -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var selectedPlanPeriod by remember { mutableStateOf("MONTHLY") } // MONTHLY or YEARLY
@@ -159,7 +159,7 @@ fun ProPlanSheet(
                         onTxnIdChange = { txnId = it },
                         utrNumber = utrNumber,
                         onUtrNumberChange = { utrNumber = it },
-                        onSubmit = { onSubmitRequest(txnId, utrNumber) },
+                        onSubmit = { onSubmitRequest(txnId, utrNumber, if (selectedPlanPeriod == "MONTHLY") "15" else "120") },
                         isLoading = isLoading
                     )
                 }
@@ -169,7 +169,7 @@ fun ProPlanSheet(
 
             // Pro Features List
             Text(
-                text = "Everything Included in PRO (₹25/mo)",
+                text = "Everything Included in PRO (₹15/mo)",
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                 color = MaterialTheme.colorScheme.onSurface
             )
@@ -177,6 +177,11 @@ fun ProPlanSheet(
             Spacer(modifier = Modifier.height(12.dp))
 
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                ProFeatureItem(
+                    icon = Icons.Default.AutoAwesome,
+                    title = "Daily AI Money Growth & Wealth Advisor",
+                    desc = "AI batayega: Kaha se paise bachao, Kaha lagao, Kitna grow hoga aur Kabb takk! Pura transparent hisaab."
+                )
                 ProFeatureItem(
                     icon = Icons.Default.Sms,
                     title = "Auto All Transaction SMS Sync",
@@ -331,18 +336,18 @@ private fun ProPaymentForm(
 
                 Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.Center) {
                     Text(
-                        text = if (selectedPlanPeriod == "MONTHLY") "₹25" else "₹249",
+                        text = if (selectedPlanPeriod == "MONTHLY") "₹15" else "₹120",
                         style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.ExtraBold, fontSize = 38.sp, color = RoyalBlue)
                     )
                     Text(
-                        text = if (selectedPlanPeriod == "MONTHLY") " / month" else " / year (₹20/mo)",
+                        text = if (selectedPlanPeriod == "MONTHLY") " / month" else " / year (₹10/mo)",
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant),
                         modifier = Modifier.padding(bottom = 6.dp)
                     )
                 }
 
                 Text(
-                    text = "☕ Ek chai ke daam mein pura ghar ka digital hisaab!",
+                    text = "☕ Ek chai se bhi kam daam mein pura ghar ka digital hisaab!",
                     style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
                     color = MaterialTheme.colorScheme.onSurface
                 )
@@ -354,13 +359,13 @@ private fun ProPaymentForm(
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     PlanOptionPill(
-                        title = "Monthly @ ₹25/mo",
+                        title = "Monthly @ ₹15/mo",
                         selected = selectedPlanPeriod == "MONTHLY",
                         onClick = { onPeriodChange("MONTHLY") },
                         modifier = Modifier.weight(1f)
                     )
                     PlanOptionPill(
-                        title = "Yearly @ ₹249/yr (Save 17%)",
+                        title = "Yearly @ ₹120/yr (Save 33%)",
                         selected = selectedPlanPeriod == "YEARLY",
                         onClick = { onPeriodChange("YEARLY") },
                         modifier = Modifier.weight(1f)
@@ -385,7 +390,7 @@ private fun ProPaymentForm(
                 }
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "1. PhonePe pe ₹25 transfer karein: 9050884894\n2. Transfer ke baad Txn ID aur UTR number yahan enter karein.",
+                    text = "1. PhonePe pe ${if (selectedPlanPeriod == "MONTHLY") "₹15" else "₹120"} transfer karein: 9050884894\n2. Transfer ke baad Txn ID aur UTR number yahan enter karein.",
                     style = MaterialTheme.typography.bodySmall
                 )
             }

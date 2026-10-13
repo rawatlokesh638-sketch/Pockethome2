@@ -394,26 +394,19 @@ fun AddExpenseScreen(
                             Text(
                                 text = "Recurring Expense",
                                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                                color = if (isPro) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                                color = MaterialTheme.colorScheme.onSurface
                             )
-                            if (!isPro) {
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Icon(imageVector = Icons.Default.Lock, contentDescription = "Pro Only", modifier = Modifier.size(14.dp), tint = Color.Gray)
-                            }
                         }
                         Text(
-                            text = if (isPro) "Auto-repeat every month/week" else "Upgrade to PRO to auto-repeat expenses",
+                            text = "Auto-repeat every month/week",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
 
                     Switch(
-                        checked = isRecurring && isPro,
-                        onCheckedChange = { 
-                            if (isPro) isRecurring = it 
-                            else onUpgradeClicked()
-                        },
+                        checked = isRecurring,
+                        onCheckedChange = { isRecurring = it },
                         colors = SwitchDefaults.colors(
                             checkedThumbColor = Color.White,
                             checkedTrackColor = BrandOrange
@@ -431,13 +424,9 @@ fun AddExpenseScreen(
                         .background(MaterialTheme.colorScheme.surface)
                         .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
                         .clickable {
-                            if (isPro) {
-                                photoPickerLauncher.launch(
-                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                                )
-                            } else {
-                                onUpgradeClicked()
-                            }
+                            photoPickerLauncher.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                            )
                         }
                         .padding(horizontal = 14.dp, vertical = 12.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -445,26 +434,26 @@ fun AddExpenseScreen(
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
-                            imageVector = if (!isPro) Icons.Default.Lock else if (receiptUriString.isNotEmpty()) Icons.Default.Receipt else Icons.Default.AttachFile,
+                            imageVector = if (receiptUriString.isNotEmpty()) Icons.Default.Receipt else Icons.Default.AttachFile,
                             contentDescription = "Attach Receipt",
-                            tint = if (receiptUriString.isNotEmpty() && isPro) BrandOrange else MaterialTheme.colorScheme.onSurfaceVariant
+                            tint = if (receiptUriString.isNotEmpty()) BrandOrange else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
                             Text(
-                                text = if (isPro) (if (receiptUriString.isNotEmpty()) "Receipt Attached ✅" else "Attach Receipt / Photo") else "Attach Receipt (PRO)",
+                                text = if (receiptUriString.isNotEmpty()) "Receipt Attached ✅" else "Attach Receipt / Photo",
                                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                                color = if (isPro) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = if (isPro) (if (receiptUriString.isNotEmpty()) "Tap to change image" else "Bill photo ya receipt jodein") else "Unlimited photo vault for your bills",
+                                text = if (receiptUriString.isNotEmpty()) "Tap to change image" else "Bill photo ya receipt jodein",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
 
-                    if (receiptUriString.isNotEmpty() && isPro) {
+                    if (receiptUriString.isNotEmpty()) {
                         IconButton(
                             onClick = { receiptUriString = "" },
                             modifier = Modifier.size(28.dp)

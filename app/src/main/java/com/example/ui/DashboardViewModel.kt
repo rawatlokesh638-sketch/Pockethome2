@@ -225,44 +225,6 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         return msg
     }
 
-    fun signInWithGoogle(idToken: String) {
-        _authLoading.value = true
-        _authError.value = null
-        val credential = com.google.firebase.auth.GoogleAuthProvider.getCredential(idToken, null)
-        Firebase.auth.signInWithCredential(credential)
-            .addOnSuccessListener { result ->
-                _authLoading.value = false
-            }
-            .addOnFailureListener { e ->
-                _authLoading.value = false
-                _authError.value = formatAuthError(e)
-            }
-    }
-
-    fun quickGoogleSignIn(email: String = "google.user@pockethome.app", displayName: String = "Google User") {
-        _authLoading.value = true
-        _authError.value = null
-        Firebase.auth.signInWithEmailAndPassword(email, "Pockethome@2026")
-            .addOnSuccessListener {
-                _authLoading.value = false
-            }
-            .addOnFailureListener {
-                Firebase.auth.createUserWithEmailAndPassword(email, "Pockethome@2026")
-                    .addOnSuccessListener { result ->
-                        val profileUpdates = com.google.firebase.auth.userProfileChangeRequest {
-                            this.displayName = displayName
-                        }
-                        result.user?.updateProfile(profileUpdates)?.addOnCompleteListener {
-                            _authLoading.value = false
-                        }
-                    }
-                    .addOnFailureListener { e ->
-                        _authLoading.value = false
-                        _authError.value = formatAuthError(e)
-                    }
-            }
-    }
-
     fun setAuthError(error: String?) {
         _authError.value = error
     }
@@ -377,7 +339,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         _isProUser.value = isPro
     }
 
-    fun submitProMembershipRequest(txnId: String, utr: String, onSuccess: () -> Unit = {}, onFailure: (String) -> Unit = {}) {
+    fun submitProMembershipRequest(txnId: String, utr: String, amount: String = "15", onSuccess: () -> Unit = {}, onFailure: (String) -> Unit = {}) {
         val user = Firebase.auth.currentUser
         if (user == null) {
             onFailure("Please login first")
@@ -389,7 +351,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
             userName = user.displayName ?: "User",
             txnId = txnId,
             utrNumber = utr,
-            amount = "25",
+            amount = amount,
             status = "PENDING"
         )
         _authLoading.value = true

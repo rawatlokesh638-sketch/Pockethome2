@@ -10,9 +10,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -38,6 +40,7 @@ fun ReportsScreen(
     onBack: () -> Unit,
     onTimeframeSelected: (ReportsTimeframe) -> Unit,
     onUpgradeClicked: () -> Unit = {},
+    onOpenAiAdvisor: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Surface(
@@ -74,28 +77,42 @@ fun ReportsScreen(
                 contentPadding = PaddingValues(bottom = 90.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                if (!isPro) {
-                    item {
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 20.dp)
-                                .clickable { onUpgradeClicked() },
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(containerColor = BrandOrange.copy(alpha = 0.1f)),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, BrandOrange.copy(alpha = 0.3f))
+                // AI Money Growth Advisor Banner in Reports
+                item {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp)
+                            .clickable { onOpenAiAdvisor() },
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = MoneyGreen.copy(alpha = 0.08f)),
+                        border = androidx.compose.foundation.BorderStroke(1.2.dp, MoneyGreen.copy(alpha = 0.35f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(
-                                modifier = Modifier.padding(16.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                            Box(
+                                modifier = Modifier
+                                    .size(42.dp)
+                                    .clip(CircleShape)
+                                    .background(MoneyGreen.copy(alpha = 0.15f)),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Icon(imageVector = Icons.Default.Star, contentDescription = null, tint = BrandOrange)
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Column {
-                                    Text(text = "Unlock Advanced Insights", fontWeight = FontWeight.Bold, color = BrandOrange)
-                                    Text(text = "Upgrade to PRO for detailed reports and PDF export.", style = MaterialTheme.typography.bodySmall)
-                                }
+                                Icon(imageVector = Icons.Default.TrendingUp, contentDescription = null, tint = MoneyGreen, modifier = Modifier.size(24.dp))
                             }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(text = "AI Money Growth & Wealth Advisor", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Surface(shape = RoundedCornerShape(4.dp), color = MoneyGreen.copy(alpha = 0.15f)) {
+                                        Text(text = "LIVE", color = MoneyGreen, style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, fontWeight = FontWeight.Bold), modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp))
+                                    }
+                                }
+                                Text(text = "Kaha lagayein, kaha se bachaayein aur kitna grow hoga!", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Icon(imageVector = Icons.Default.ChevronRight, contentDescription = null, tint = MoneyGreen)
                         }
                     }
                 }

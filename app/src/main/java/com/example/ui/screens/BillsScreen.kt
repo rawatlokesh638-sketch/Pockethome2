@@ -231,11 +231,10 @@ fun BillsScreen(
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 20.dp)
-                            .clickable(!isPro) { onUpgradeClicked() },
+                            .padding(horizontal = 20.dp),
                         shape = RoundedCornerShape(16.dp),
                         colors = CardDefaults.cardColors(
-                            containerColor = if (isPro) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                         )
                     ) {
                         Row(
@@ -250,25 +249,25 @@ fun BillsScreen(
                                     modifier = Modifier
                                         .size(38.dp)
                                         .clip(RoundedCornerShape(10.dp))
-                                        .background(if (isPro) BrandOrange.copy(alpha = 0.15f) else Color.Gray.copy(alpha = 0.1f)),
+                                        .background(BrandOrange.copy(alpha = 0.15f)),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
-                                        imageVector = if (isPro) Icons.Default.NotificationsActive else Icons.Default.Lock,
+                                        imageVector = Icons.Default.NotificationsActive,
                                         contentDescription = "Notification",
-                                        tint = if (isPro) BrandOrange else Color.Gray,
+                                        tint = BrandOrange,
                                         modifier = Modifier.size(20.dp)
                                     )
                                 }
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Column {
                                     Text(
-                                        text = if (isPro) "Automatic Reminders" else "Auto Reminders (PRO)",
+                                        text = "Automatic Bill Reminders",
                                         style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                                        color = if (isPro) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                                        color = MaterialTheme.colorScheme.onSurface
                                     )
                                     Text(
-                                        text = if (isPro) "Get notified before due date" else "Upgrade to PRO for WhatsApp & app alerts",
+                                        text = "Get notified before due date so you never miss a bill",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -276,11 +275,8 @@ fun BillsScreen(
                             }
 
                             Switch(
-                                checked = autoRemindersEnabled && isPro,
-                                onCheckedChange = { 
-                                    if (isPro) autoRemindersEnabled = it 
-                                    else onUpgradeClicked()
-                                },
+                                checked = autoRemindersEnabled,
+                                onCheckedChange = { autoRemindersEnabled = it },
                                 colors = SwitchDefaults.colors(
                                     checkedThumbColor = Color.White,
                                     checkedTrackColor = BrandOrange

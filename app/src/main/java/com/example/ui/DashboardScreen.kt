@@ -19,6 +19,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.model.Transaction
 import com.example.ui.components.AddBillSheet
 import com.example.ui.components.AddTransactionSheet
+import com.example.ui.components.AiMoneyGrowthSheet
 import com.example.ui.components.ChartTimeframe
 import com.example.ui.components.EditBudgetDialog
 import com.example.ui.components.PocketHomeBottomBar
@@ -41,6 +42,7 @@ fun DashboardScreen(
     var editingTransaction by remember { mutableStateOf<Transaction?>(null) }
 
     var showSmartAddSheet by remember { mutableStateOf(false) }
+    var showAiGrowthSheet by remember { mutableStateOf(false) }
     var showAddIncomeSheet by remember { mutableStateOf(false) }
     var showAddBillSheet by remember { mutableStateOf(false) }
     var showEditBudgetDialog by remember { mutableStateOf(false) }
@@ -95,8 +97,6 @@ fun DashboardScreen(
                 LoginScreen(
                     onLogin = { e, p -> viewModel.login(email = e, pass = p) },
                     onNavigateToSignup = { viewModel.setAuthMode(AuthMode.SIGNUP) },
-                    onGoogleSignIn = { token -> viewModel.signInWithGoogle(token) },
-                    onQuickGoogleSignIn = { viewModel.quickGoogleSignIn() },
                     isLoading = uiState.authLoading,
                     errorMessage = uiState.authError
                 )
@@ -105,8 +105,6 @@ fun DashboardScreen(
                 SignupScreen(
                     onSignup = { n, e, p -> viewModel.signup(name = n, email = e, pass = p) },
                     onNavigateToLogin = { viewModel.setAuthMode(AuthMode.LOGIN) },
-                    onGoogleSignIn = { token -> viewModel.signInWithGoogle(token) },
-                    onQuickGoogleSignIn = { viewModel.quickGoogleSignIn() },
                     isLoading = uiState.authLoading,
                     errorMessage = uiState.authError
                 )
@@ -200,6 +198,7 @@ fun DashboardScreen(
                                                     snackbarHostState.showSnackbar("Bill deleted.")
                                                 }
                                             },
+                                            onOpenAiGrowthAdvisor = { showAiGrowthSheet = true },
                                             onLogout = { viewModel.logout() }
                                         )
                                     }
@@ -241,7 +240,8 @@ fun DashboardScreen(
                                             isPro = uiState.isProUser,
                                             onBack = { viewModel.selectTab(AppTab.HOME) },
                                             onTimeframeSelected = { viewModel.setReportsTimeframe(it) },
-                                            onUpgradeClicked = { showProPlanSheet = true }
+                                            onUpgradeClicked = { showProPlanSheet = true },
+                                            onOpenAiAdvisor = { showAiGrowthSheet = true }
                                         )
                                     }
 
@@ -379,15 +379,25 @@ fun DashboardScreen(
         )
     }
 
+    if (showAiGrowthSheet) {
+        AiMoneyGrowthSheet(
+            monthlyIncome = uiState.currentMonthIncome,
+            monthlyExpenses = uiState.currentMonthExpenses,
+            categorySpends = uiState.categoryBreakdown,
+            onDismiss = { showAiGrowthSheet = false }
+        )
+    }
+
     if (showProPlanSheet) {
         ProPlanSheet(
             proStatus = uiState.proStatus,
             isLoading = uiState.authLoading,
             onDismiss = { showProPlanSheet = false },
-            onSubmitRequest = { txn, utr ->
+            onSubmitRequest = { txn, utr, amt ->
                 viewModel.submitProMembershipRequest(
                     txnId = txn,
                     utr = utr,
+                    amount = amt,
                     onSuccess = {
                         scope.launch {
                             snackbarHostState.showSnackbar("Payment request submitted! Admin jald hi approve kar denge. ⏳")

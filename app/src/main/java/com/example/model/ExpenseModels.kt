@@ -83,7 +83,7 @@ data class ProRequest(
     val userName: String = "",
     val txnId: String = "",
     val utrNumber: String = "",
-    val amount: String = "25",
+    val amount: String = "15",
     val requestedAt: Long = System.currentTimeMillis(),
     val status: String = "PENDING" // PENDING, APPROVED, REJECTED
 )

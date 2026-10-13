@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pockethome - Ghar Ka Smart Hisaab & AI Money Growth</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#1D4ED8',
+                        primaryDark: '#1E40AF',
+                        brandGreen: '#10B981',
+                        brandOrange: '#F97316',
+                        bgLight: '#F8FAFC'
+                    },
+                    fontFamily: {
+                        sans: ['"Plus Jakarta Sans"', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #F8FAFC; }
+        .gradient-card { background: linear-gradient(135deg, #1E40AF 0%, #3B82F6 100%); }
+        .tab-active { border-bottom: 3px solid #1D4ED8; color: #1D4ED8; font-weight: 700; }
+    </style>
+</head>
+<body class="text-slate-800 antialiased min-h-screen flex flex-col">
+
+    <!-- Top Navigation Bar -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm">
+        <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-primary to-blue-500 flex items-center justify-center text-white font-black text-xl shadow-md shadow-blue-500/20">
+                    P
+                </div>
+                <div>
+                    <div class="flex items-center space-x-2">
+                        <span class="text-xl font-extrabold tracking-tight text-slate-900">Pockethome</span>
+                        <span id="userProBadge" class="hidden text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300 px-2 py-0.5 rounded-full">PRO ⭐</span>
+                    </div>
+                    <p class="text-xs text-slate-500 hidden sm:block">Smart SMS Expense Tracker & AI Money Growth</p>
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-3">
+                <div id="authLoggedOut" class="flex items-center space-x-2">
+                    <button onclick="openAuthModal('login')" class="px-4 py-2 text-sm font-semibold text-primary hover:bg-blue-50 rounded-lg transition">Login</button>
+                    <button onclick="openAuthModal('signup')" class="px-4 py-2 text-sm font-semibold text-white bg-primary hover:bg-primaryDark rounded-lg shadow-sm transition">Sign Up</button>
+                </div>
+                <div id="authLoggedIn" class="hidden flex items-center space-x-3">
+                    <span id="navUserEmail" class="text-sm font-medium text-slate-600 hidden md:inline"></span>
+                    <button onclick="handleLogout()" class="px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 border border-red-200 rounded-lg transition">Logout</button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="max-w-6xl mx-auto px-4 py-6 flex-1 w-full space-y-6">
+
+        <!-- Android Companion App Sync Banner -->
+        <div class="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white rounded-2xl p-5 shadow-lg flex flex-col md:flex-row items-center justify-between gap-4">
+            <div class="space-y-1 text-center md:text-left">
+                <div class="inline-flex items-center space-x-2 bg-blue-500/20 border border-blue-400/30 px-2.5 py-0.5 rounded-full text-xs font-semibold text-blue-300">
+                    <span>⚡ Android App + Web Sync Active</span>
+                </div>
+                <h2 class="text-lg md:text-xl font-bold">Phone SMS Auto-Sync + Website Live Hisaab</h2>
+                <p class="text-xs md:text-sm text-slate-300 max-w-xl">
+                    Phone me Pockethome Android app install karein jisse sabhi Bank, UPI, Wallets ke SMS automatically sync ho jayein. Yahan website par sabhi transactions live dikhenge!
+                </p>
+            </div>
+            <div class="flex items-center space-x-2 w-full md:w-auto justify-center">
+                <button onclick="document.getElementById('smsParserSection').scrollIntoView({behavior: 'smooth'})" class="px-4 py-2.5 text-xs sm:text-sm font-bold bg-white text-slate-900 rounded-xl hover:bg-slate-100 shadow transition flex items-center space-x-1.5">
+                    <span>💬 SMS Message Paste Karein</span>
+                </button>
+                <button onclick="openProModal()" class="px-4 py-2.5 text-xs sm:text-sm font-bold bg-amber-500 hover:bg-amber-600 text-white rounded-xl shadow transition">
+                    <span>PRO Plan (₹15/mo)</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Financial Summary Dashboard Cards -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Income 💰</p>
+                <h3 id="statTotalIncome" class="text-xl sm:text-2xl font-extrabold text-brandGreen mt-1">₹0</h3>
+                <p class="text-[11px] text-slate-400 mt-0.5">Is mahine ka kul aay</p>
+            </div>
+            <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Expenses 💸</p>
+                <h3 id="statTotalExpense" class="text-xl sm:text-2xl font-extrabold text-red-600 mt-1">₹0</h3>
+                <p class="text-[11px] text-slate-400 mt-0.5">Is mahine ka kharcha</p>
+            </div>
+            <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Remaining Balance 🏦</p>
+                <h3 id="statBalance" class="text-xl sm:text-2xl font-extrabold text-primary mt-1">₹0</h3>
+                <p class="text-[11px] text-slate-400 mt-0.5">Bacha hua paisa</p>
+            </div>
+            <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Monthly Budget 🎯</p>
+                <div class="flex items-baseline justify-between mt-1">
+                    <h3 id="statBudget" class="text-xl sm:text-2xl font-extrabold text-slate-800">₹30,000</h3>
+                    <span id="statBudgetPercent" class="text-xs font-bold text-slate-500">0% Used</span>
+                </div>
+                <div class="w-full bg-slate-100 rounded-full h-1.5 mt-2">
+                    <div id="statBudgetBar" class="bg-primary h-1.5 rounded-full" style="width: 0%"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Interactive Smart SMS & Message Parser Section -->
+        <div id="smsParserSection" class="bg-white rounded-2xl border border-blue-200 p-5 shadow-sm">
+            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-slate-100 pb-3 mb-4">
+                <div>
+                    <h3 class="text-base sm:text-lg font-bold text-slate-900 flex items-center space-x-2">
+                        <span>💬 SMS & Bank Message Parser (Instant Entry)</span>
+                        <span class="text-[10px] bg-blue-100 text-blue-800 font-bold px-2 py-0.5 rounded-md">LIVE PARSER</span>
+                    </h3>
+                    <p class="text-xs text-slate-500">Phone ka koi bhi Bank, UPI, Credit Card ya ATM SMS yahan paste karein - AI turant amount, merchant aur category nikal lega!</p>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <button onclick="loadSampleSms(1)" class="text-xs font-semibold px-2.5 py-1 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-700">Sample UPI</button>
+                    <button onclick="loadSampleSms(2)" class="text-xs font-semibold px-2.5 py-1 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-700">Sample Card</button>
+                    <button onclick="loadSampleSms(3)" class="text-xs font-semibold px-2.5 py-1 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-700">Sample Salary</button>
+                </div>
+            </div>
+
+            <div class="space-y-3">
+                <textarea id="rawSmsInput" rows="3" placeholder="Yahan SMS paste karein... e.g.: Acct XX1234 debited by Rs. 850.00 on 12-Oct-26 by UPI to SWIGGY Ref 3284920..." class="w-full p-3 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none"></textarea>
+                
+                <!-- Parsed Result Card (Dynamic) -->
+                <div id="parsedPreviewBox" class="hidden bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-2">
+                    <div class="flex items-center justify-between text-xs font-bold text-slate-500 uppercase tracking-wide">
+                        <span>Detected Details</span>
+                        <span id="parsedTypeBadge" class="px-2 py-0.5 rounded-md text-[11px] font-extrabold bg-red-100 text-red-800">EXPENSE</span>
+                    </div>
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+                        <div>
+                            <span class="text-[11px] text-slate-400 block">Amount</span>
+                            <span id="parsedAmount" class="font-extrabold text-slate-900 text-base">₹0</span>
+                        </div>
+                        <div>
+                            <span class="text-[11px] text-slate-400 block">Merchant / Title</span>
+                            <span id="parsedTitle" class="font-bold text-slate-800 truncate block">Expense</span>
+                        </div>
+                        <div>
+                            <span class="text-[11px] text-slate-400 block">Category</span>
+                            <span id="parsedCategory" class="font-bold text-slate-800 block">Food</span>
+                        </div>
+                        <div>
+                            <span class="text-[11px] text-slate-400 block">Payment Mode</span>
+                            <span id="parsedMode" class="font-bold text-slate-800 block">UPI</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-between pt-1">
+                    <p class="text-xs text-slate-400">💡 Native Android app background me ye sab bina paste kiye automatically kar leti hai.</p>
+                    <div class="flex space-x-2">
+                        <button onclick="parseSmsText()" class="px-4 py-2 text-xs font-bold bg-slate-800 text-white hover:bg-slate-900 rounded-xl transition">Analyze SMS</button>
+                        <button id="saveParsedBtn" onclick="saveParsedTransaction()" disabled class="px-5 py-2 text-xs font-bold bg-primary text-white hover:bg-primaryDark disabled:opacity-40 disabled:cursor-not-allowed rounded-xl transition shadow-sm">Save to Hisaab 💾</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Workspace Tabs: [Transactions] [AI Money Growth] [Bills] -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="flex border-b border-slate-200 px-4 bg-slate-50/50">
+                <button onclick="switchTab('transactions')" id="tabBtnTransactions" class="px-4 py-3 text-sm font-semibold text-slate-600 tab-active">
+                    📋 Recent Transactions (<span id="txCountBadge">0</span>)
+                </button>
+                <button onclick="switchTab('growth')" id="tabBtnGrowth" class="px-4 py-3 text-sm font-semibold text-slate-600">
+                    📈 AI Money Growth & Tips
+                </button>
+                <button onclick="switchTab('bills')" id="tabBtnBills" class="px-4 py-3 text-sm font-semibold text-slate-600">
+                    🧾 Upcoming Bills
+                </button>
+            </div>
+
+            <!-- Tab 1: Transactions List -->
+            <div id="tabContentTransactions" class="p-4 space-y-3">
+                <div class="flex items-center justify-between text-xs text-slate-500 pb-2">
+                    <span>Real-time Live Sync from Phone & Web</span>
+                    <button onclick="openManualAddModal()" class="text-primary font-bold hover:underline">+ Add Manual Entry</button>
+                </div>
+                <div id="transactionsList" class="space-y-2">
+                    <div class="text-center py-10 text-slate-400 text-sm">
+                        Loading hisaab data... Please login to view your personal sync.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab 2: AI Money Growth Advisor -->
+            <div id="tabContentGrowth" class="hidden p-5 space-y-6">
+                <!-- AI Daily Advice Banner -->
+                <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
+                    <div class="flex items-center space-x-2 text-emerald-800 font-bold text-sm">
+                        <span>✨ Daily AI Wealth Strategy (Live)</span>
+                    </div>
+                    <h4 class="text-base font-bold text-slate-900 mt-1">Roz ₹150 alag karke Nifty 50 Index SIP shuru karein!</h4>
+                    <p class="text-xs text-slate-600 mt-1">Chhote non-essential kharche bacha kar har mahine ₹3,000 to ₹5,000 invest karne par 5 saal me ₹3.2 Lakhs ka corpus ban sakta hai.</p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <!-- Column 1: Kaha Lagao -->
+                    <div class="bg-slate-50 rounded-xl p-4 border border-slate-200 space-y-3">
+                        <div class="flex items-center space-x-2 text-primary font-bold text-sm">
+                            <span>🚀 Kaha Lagao? (Asset Allocation)</span>
+                        </div>
+                        <div class="space-y-2 text-xs">
+                            <div class="p-2.5 bg-white rounded-lg border border-slate-200 shadow-2xs">
+                                <span class="font-bold text-slate-900 block">50% Nifty 50 Index SIP</span>
+                                <span class="text-emerald-600 font-semibold">12-14% CAGR Expected</span>
+                                <span class="text-slate-400 block text-[10px]">Groww, Zerodha Coin, AngelOne</span>
+                            </div>
+                            <div class="p-2.5 bg-white rounded-lg border border-slate-200 shadow-2xs">
+                                <span class="font-bold text-slate-900 block">20% Emergency Reserve</span>
+                                <span class="text-blue-600 font-semibold">6.5-7.5% High Yield / Liquid Fund</span>
+                                <span class="text-slate-400 block text-[10px]">Instant Bank Account or Liquid Fund</span>
+                            </div>
+                            <div class="p-2.5 bg-white rounded-lg border border-slate-200 shadow-2xs">
+                                <span class="font-bold text-slate-900 block">15% Sovereign Gold Bonds</span>
+                                <span class="text-amber-600 font-semibold">10-11% CAGR + 2.5% Govt Interest</span>
+                                <span class="text-slate-400 block text-[10px]">RBI SGB / Digital Gold</span>
+                            </div>
+                            <div class="p-2.5 bg-white rounded-lg border border-slate-200 shadow-2xs">
+                                <span class="font-bold text-slate-900 block">15% PPF / Safe RD</span>
+                                <span class="text-purple-600 font-semibold">7.1-8% Tax-Free Return</span>
+                                <span class="text-slate-400 block text-[10px]">Post Office or Bank Account</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Column 2: Kaha Bachao -->
+                    <div class="bg-slate-50 rounded-xl p-4 border border-slate-200 space-y-3">
+                        <div class="flex items-center space-x-2 text-brandOrange font-bold text-sm">
+                            <span>🛑 Kaha Bachao? (Money Leaks)</span>
+                        </div>
+                        <div class="space-y-2 text-xs">
+                            <div class="p-2.5 bg-white rounded-lg border border-slate-200 shadow-2xs">
+                                <div class="flex justify-between items-center">
+                                    <span class="font-bold text-slate-900">Food & Dining</span>
+                                    <span class="text-brandOrange font-bold">Save ₹600/mo</span>
+                                </div>
+                                <span class="text-slate-500 block text-[11px] mt-0.5">Bahar khana ya Swiggy-Zomato mahine me 2 baar kam karein.</span>
+                            </div>
+                            <div class="p-2.5 bg-white rounded-lg border border-slate-200 shadow-2xs">
+                                <div class="flex justify-between items-center">
+                                    <span class="font-bold text-slate-900">Online Shopping</span>
+                                    <span class="text-brandOrange font-bold">Save ₹800/mo</span>
+                                </div>
+                                <span class="text-slate-500 block text-[11px] mt-0.5">48-Hour Rule: Khareedne se pehle 2 din ruko. 70% impulse gayab ho jata hai.</span>
+                            </div>
+                            <div class="p-2.5 bg-white rounded-lg border border-slate-200 shadow-2xs">
+                                <div class="flex justify-between items-center">
+                                    <span class="font-bold text-slate-900">OTT & Subscriptions</span>
+                                    <span class="text-brandOrange font-bold">Save ₹400/mo</span>
+                                </div>
+                                <span class="text-slate-500 block text-[11px] mt-0.5">Jo OTT apps nahi dekhte unhe turant pause karein.</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Column 3: Kitna Grow Hoga -->
+                    <div class="bg-slate-50 rounded-xl p-4 border border-slate-200 space-y-3">
+                        <div class="flex items-center space-x-2 text-brandGreen font-bold text-sm">
+                            <span>📈 Kitna Grow Hoga & Kabb Takk?</span>
+                        </div>
+                        <div class="space-y-2 text-xs">
+                            <div class="p-2.5 bg-white rounded-lg border border-slate-200 shadow-2xs">
+                                <div class="flex justify-between items-center">
+                                    <span class="font-bold text-slate-900">1 Saal Baad (2027)</span>
+                                    <span class="text-emerald-600 font-extrabold">₹38,500</span>
+                                </div>
+                                <span class="text-slate-500 block text-[10px]">Invested: ₹36,000 | Profit: +₹2,500</span>
+                            </div>
+                            <div class="p-2.5 bg-white rounded-lg border border-slate-200 shadow-2xs">
+                                <div class="flex justify-between items-center">
+                                    <span class="font-bold text-slate-900">3 Saal Baad (2029)</span>
+                                    <span class="text-emerald-600 font-extrabold">₹1,32,000</span>
+                                </div>
+                                <span class="text-slate-500 block text-[10px]">Invested: ₹1,08,000 | Profit: +₹24,000</span>
+                            </div>
+                            <div class="p-2.5 bg-white rounded-lg border border-slate-200 shadow-2xs">
+                                <div class="flex justify-between items-center">
+                                    <span class="font-bold text-slate-900">5 Saal Baad (2031)</span>
+                                    <span class="text-emerald-600 font-extrabold">₹2,48,000</span>
+                                </div>
+                                <span class="text-slate-500 block text-[10px]">Invested: ₹1,80,000 | Profit: +₹68,000</span>
+                            </div>
+                            <div class="p-2.5 bg-white rounded-lg border border-slate-200 shadow-2xs">
+                                <div class="flex justify-between items-center">
+                                    <span class="font-bold text-slate-900">10 Saal Baad (2036)</span>
+                                    <span class="text-emerald-600 font-extrabold">₹7,02,000</span>
+                                </div>
+                                <span class="text-slate-500 block text-[10px]">Invested: ₹3,60,000 | Profit: +₹3,42,000</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab 3: Bills -->
+            <div id="tabContentBills" class="hidden p-4 space-y-3">
+                <div class="flex items-center justify-between text-xs text-slate-500 pb-2">
+                    <span>Bijli, Wifi, Rent & Subscriptions</span>
+                    <button onclick="openManualBillModal()" class="text-primary font-bold hover:underline">+ Add Bill</button>
+                </div>
+                <div id="billsList" class="space-y-2">
+                    <div class="text-center py-8 text-slate-400 text-sm">No upcoming bills added.</div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-slate-200 py-6 mt-auto text-center text-xs text-slate-400">
+        <p>© 2026 Pockethome • Smart Indian Home Expense Tracker & Wealth Advisor</p>
+    </footer>
+
+    <!-- Auth Modal -->
+    <div id="authModal" class="fixed inset-0 bg-black/60 backdrop-blur-xs hidden items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4">
+            <div class="flex items-center justify-between">
+                <h3 id="authModalTitle" class="text-lg font-bold text-slate-900">Login to Pockethome</h3>
+                <button onclick="closeAuthModal()" class="text-slate-400 hover:text-slate-600 text-xl font-bold">&times;</button>
+            </div>
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Email Address</label>
+                    <input type="email" id="modalEmail" placeholder="you@gmail.com" class="w-full p-2.5 text-sm border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-primary">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Password</label>
+                    <input type="password" id="modalPass" placeholder="••••••••" class="w-full p-2.5 text-sm border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-primary">
+                </div>
+                <p id="authErrorMsg" class="text-xs text-red-600 hidden"></p>
+                <button id="authSubmitBtn" onclick="submitAuthForm()" class="w-full py-2.5 text-sm font-bold bg-primary text-white rounded-xl hover:bg-primaryDark transition shadow">Login</button>
+            </div>
+            <div class="text-center text-xs text-slate-500">
+                <span id="authToggleText">Don't have an account?</span>
+                <button id="authToggleBtn" onclick="toggleAuthMode()" class="text-primary font-bold hover:underline ml-1">Sign Up</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pro Plan Modal -->
+    <div id="proModal" class="fixed inset-0 bg-black/60 backdrop-blur-xs hidden items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div class="flex items-center justify-between">
+                <h3 class="text-lg font-extrabold text-slate-900">Pockethome PRO ✨</h3>
+                <button onclick="closeProModal()" class="text-slate-400 hover:text-slate-600 text-xl font-bold">&times;</button>
+            </div>
+            
+            <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center">
+                <span class="text-xs font-bold text-primary uppercase tracking-wide">Family Plan</span>
+                <div class="text-3xl font-black text-primary mt-1">₹15 <span class="text-sm font-semibold text-slate-500">/ month</span></div>
+                <p class="text-xs text-slate-600 mt-1">Ya ₹120 / year (Save 33%) • PhonePe 9050884894</p>
+            </div>
+
+            <div class="space-y-2 text-xs text-slate-700">
+                <div class="flex items-center space-x-2"><span>✅</span><span>All SMS Auto-Sync from Phone</span></div>
+                <div class="flex items-center space-x-2"><span>✅</span><span>Daily AI Wealth Advisor & Leakage Hunter</span></div>
+                <div class="flex items-center space-x-2"><span>✅</span><span>Export Hisaab to PDF & Excel</span></div>
+                <div class="flex items-center space-x-2"><span>✅</span><span>Family Realtime Sync</span></div>
+            </div>
+
+            <div class="border-t border-slate-100 pt-3 space-y-2">
+                <p class="text-xs text-slate-500">PhonePe par ₹15 (Monthly) ya ₹120 (Yearly) bhej kar Txn ID submit karein:</p>
+                <input type="text" id="proTxnId" placeholder="PhonePe Transaction ID" class="w-full p-2 text-xs border border-slate-300 rounded-lg outline-none">
+                <input type="text" id="proUtr" placeholder="12-digit UTR Number" class="w-full p-2 text-xs border border-slate-300 rounded-lg outline-none">
+                <button onclick="submitProPayment()" class="w-full py-2 text-xs font-bold bg-primary text-white rounded-xl hover:bg-primaryDark transition">Submit for Approval</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK Modular v10 scripts -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
+        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-auth.js";
+        import { getDatabase, ref, onValue, push, set } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyAoPn8qfSI98DvPPmJZyHNVJQTkXgbRzrE",
+            authDomain: "pocket-home-3d327.firebaseapp.com",
+            databaseURL: "https://pocket-home-3d327-default-rtdb.firebaseio.com",
+            projectId: "pocket-home-3d327",
+            storageBucket: "pocket-home-3d327.firebasestorage.app"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getDatabase(app);
+
+        let currentUser = null;
+        let authMode = "login"; // login or signup
+        let currentParsedTx = null;
+
+        // UI Auth state listener
+        onAuthStateChanged(auth, (user) => {
+            currentUser = user;
+            if (user) {
+                document.getElementById('authLoggedOut').classList.add('hidden');
+                document.getElementById('authLoggedIn').classList.remove('hidden');
+                document.getElementById('navUserEmail').innerText = user.email || 'User';
+                listenToUserData(user.uid);
+            } else {
+                document.getElementById('authLoggedOut').classList.remove('hidden');
+                document.getElementById('authLoggedIn').classList.add('hidden');
+                renderEmptyTransactions("Please Login or Sign Up to sync your Pockethome hisaab.");
+            }
+        });
+
+        function listenToUserData(uid) {
+            // Listen to transactions
+            const txRef = ref(db, `users/${uid}/transactions`);
+            onValue(txRef, (snapshot) => {
+                const data = snapshot.val();
+                const txList = [];
+                if (data) {
+                    Object.keys(data).forEach(k => {
+                        txList.push({ id: k, ...data[k] });
+                    });
+                }
+                txList.sort((a,b) => (b.timestamp || 0) - (a.timestamp || 0));
+                renderTransactions(txList);
+                updateStats(txList);
+            });
+
+            // Listen to pro status
+            const proRef = ref(db, `users/${uid}/proStatus`);
+            onValue(proRef, (snapshot) => {
+                const ps = snapshot.val();
+                if (ps && (ps.isPro || ps.status === 'ACTIVE')) {
+                    document.getElementById('userProBadge').classList.remove('hidden');
+                } else {
+                    document.getElementById('userProBadge').classList.add('hidden');
+                }
+            });
+
+            // Listen to bills
+            const billsRef = ref(db, `users/${uid}/bills`);
+            onValue(billsRef, (snapshot) => {
+                const bdata = snapshot.val();
+                const bills = [];
+                if (bdata) {
+                    Object.keys(bdata).forEach(k => bills.push({ id: k, ...bdata[k] }));
+                }
+                renderBills(bills);
+            });
+        }
+
+        function renderTransactions(txs) {
+            const container = document.getElementById('transactionsList');
+            document.getElementById('txCountBadge').innerText = txs.length;
+            if (!txs || txs.length === 0) {
+                container.innerHTML = `<div class="text-center py-8 text-slate-400 text-sm">Koi transactions nahi mile. SMS paste karein ya app me auto-sync karein!</div>`;
+                return;
+            }
+
+            container.innerHTML = txs.map(tx => {
+                const isExpense = (tx.type || 'EXPENSE').toUpperCase() === 'EXPENSE';
+                const sign = isExpense ? '-' : '+';
+                const colorClass = isExpense ? 'text-slate-900' : 'text-emerald-600 font-extrabold';
+                const bgIcon = isExpense ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600';
+                return `
+                    <div class="flex items-center justify-between p-3 bg-slate-50 hover:bg-slate-100 rounded-xl border border-slate-200/80 transition">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-9 h-9 rounded-xl ${bgIcon} flex items-center justify-center font-bold text-xs">
+                                ${isExpense ? '💸' : '💰'}
+                            </div>
+                            <div>
+                                <span class="font-bold text-slate-800 text-sm block">${escapeHtml(tx.title || 'Expense')}</span>
+                                <span class="text-xs text-slate-400">${escapeHtml(tx.category || 'General')} • ${escapeHtml(tx.paymentMode || 'UPI')} • ${escapeHtml(tx.date || '')}</span>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <span class="text-sm font-bold ${colorClass}">${sign}₹${Number(tx.amount || 0).toLocaleString('en-IN')}</span>
+                            ${tx.isSmsParsed ? '<span class="text-[10px] text-blue-600 font-semibold block">SMS Synced ⚡</span>' : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderBills(bills) {
+            const container = document.getElementById('billsList');
+            if (!bills || bills.length === 0) {
+                container.innerHTML = `<div class="text-center py-6 text-slate-400 text-sm">No bills added yet.</div>`;
+                return;
+            }
+            container.innerHTML = bills.map(b => `
+                <div class="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200">
+                    <div>
+                        <span class="font-bold text-sm text-slate-800">${escapeHtml(b.title)}</span>
+                        <span class="text-xs text-slate-400 block">Due: ${escapeHtml(b.dueDate)}</span>
+                    </div>
+                    <span class="font-bold text-sm text-slate-900">₹${Number(b.amount || 0).toLocaleString('en-IN')}</span>
+                </div>
+            `).join('');
+        }
+
+        function updateStats(txs) {
+            let totalIncome = 0;
+            let totalExpense = 0;
+            txs.forEach(t => {
+                const amt = Number(t.amount || 0);
+                if ((t.type || 'EXPENSE').toUpperCase() === 'INCOME') totalIncome += amt;
+                else totalExpense += amt;
+            });
+            const bal = totalIncome - totalExpense;
+            document.getElementById('statTotalIncome').innerText = '₹' + totalIncome.toLocaleString('en-IN');
+            document.getElementById('statTotalExpense').innerText = '₹' + totalExpense.toLocaleString('en-IN');
+            document.getElementById('statBalance').innerText = '₹' + bal.toLocaleString('en-IN');
+
+            const budget = 30000;
+            const pct = Math.min(100, Math.round((totalExpense / budget) * 100));
+            document.getElementById('statBudgetPercent').innerText = `${pct}% Used`;
+            document.getElementById('statBudgetBar').style.width = `${pct}%`;
+        }
+
+        function renderEmptyTransactions(msg) {
+            document.getElementById('transactionsList').innerHTML = `
+                <div class="text-center py-10 text-slate-400 text-sm">
+                    ${msg}
+                </div>
+            `;
+            document.getElementById('statTotalIncome').innerText = '₹0';
+            document.getElementById('statTotalExpense').innerText = '₹0';
+            document.getElementById('statBalance').innerText = '₹0';
+        }
+
+        function escapeHtml(str) {
+            return String(str || '').replace(/[&<>"']/g, function(m) {
+                return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
+            });
+        }
+
+        // Global functions on window
+        window.openAuthModal = (mode) => {
+            authMode = mode;
+            document.getElementById('authModalTitle').innerText = mode === 'signup' ? 'Create Pockethome Account' : 'Login to Pockethome';
+            document.getElementById('authSubmitBtn').innerText = mode === 'signup' ? 'Sign Up' : 'Login';
+            document.getElementById('authToggleText').innerText = mode === 'signup' ? 'Already have an account?' : "Don't have an account?";
+            document.getElementById('authToggleBtn').innerText = mode === 'signup' ? 'Login' : 'Sign Up';
+            document.getElementById('authErrorMsg').classList.add('hidden');
+            document.getElementById('authModal').classList.remove('hidden');
+            document.getElementById('authModal').classList.add('flex');
+        };
+
+        window.closeAuthModal = () => {
+            document.getElementById('authModal').classList.add('hidden');
+            document.getElementById('authModal').classList.remove('flex');
+        };
+
+        window.toggleAuthMode = () => {
+            window.openAuthModal(authMode === 'login' ? 'signup' : 'login');
+        };
+
+        window.submitAuthForm = async () => {
+            const email = document.getElementById('modalEmail').value.trim();
+            const pass = document.getElementById('modalPass').value;
+            const errBox = document.getElementById('authErrorMsg');
+            errBox.classList.add('hidden');
+
+            if (!email || !pass) {
+                errBox.innerText = 'Please enter both email and password';
+                errBox.classList.remove('hidden');
+                return;
+            }
+
+            try {
+                if (authMode === 'signup') {
+                    await createUserWithEmailAndPassword(auth, email, pass);
+                } else {
+                    await signInWithEmailAndPassword(auth, email, pass);
+                }
+                window.closeAuthModal();
+            } catch (err) {
+                errBox.innerText = err.message || 'Authentication failed';
+                errBox.classList.remove('hidden');
+            }
+        };
+
+        window.handleLogout = async () => {
+            await signOut(auth);
+        };
+
+        // SMS Parser Logic (Direct regex & heuristics matching Android SmsParser)
+        window.parseSmsText = () => {
+            const raw = document.getElementById('rawSmsInput').value.trim();
+            if (!raw) return;
+
+            const lower = raw.toLowerCase();
+
+            // 1. Amount Extraction
+            let amount = 0;
+            const amtMatch = raw.match(/(?:(?:rs\.?|inr|₹|debited\s*by|credited\s*by)\s*)([0-9,]+(?:\.[0-9]{1,2})?)/i) ||
+                             raw.match(/(?:for|of)\s*(?:rs\.?|inr|₹)?\s*([0-9,]+(?:\.[0-9]{1,2})?)/i);
+            if (amtMatch && amtMatch[1]) {
+                amount = parseFloat(amtMatch[1].replace(/,/g, '')) || 0;
+            }
+
+            // 2. Type Detection
+            const isCredit = lower.includes('credited') || lower.includes('deposited') || lower.includes('received') || lower.includes('salary');
+            const type = isCredit ? 'INCOME' : 'EXPENSE';
+
+            // 3. Merchant / Title Extraction
+            let merchant = 'Expense';
+            const vpaMatch = raw.match(/(?:to|at|vpa|info|towards|for)\s+([A-Za-z0-9&'\-_\s]{2,25})(?:\s+(?:on|via|ref|bal|using|\.|$))/i);
+            if (vpaMatch && vpaMatch[1]) {
+                merchant = vpaMatch[1].trim();
+            } else if (lower.includes('swiggy')) merchant = 'Swiggy';
+            else if (lower.includes('zomato')) merchant = 'Zomato';
+            else if (lower.includes('amazon')) merchant = 'Amazon';
+            else if (lower.includes('flipkart')) merchant = 'Flipkart';
+            else if (lower.includes('uber')) merchant = 'Uber';
+            else if (lower.includes('ola')) merchant = 'Ola';
+            else if (lower.includes('electricity') || lower.includes('bill')) merchant = 'Electricity Bill';
+
+            // 4. Category Heuristics
+            let category = 'Others';
+            if (lower.includes('swiggy') || lower.includes('zomato') || lower.includes('restaurant') || lower.includes('food') || lower.includes('cafe')) category = 'Food';
+            else if (lower.includes('groceries') || lower.includes('blinkit') || lower.includes('zepto') || lower.includes('dmart') || lower.includes('bigbasket')) category = 'Groceries';
+            else if (lower.includes('amazon') || lower.includes('flipkart') || lower.includes('myntra') || lower.includes('mall') || lower.includes('shopping')) category = 'Shopping';
+            else if (lower.includes('uber') || lower.includes('ola') || lower.includes('petrol') || lower.includes('fuel') || lower.includes('metro')) category = 'Transport';
+            else if (lower.includes('bill') || lower.includes('electricity') || lower.includes('recharge') || lower.includes('airtel') || lower.includes('jio')) category = 'Bills';
+            else if (lower.includes('hospital') || lower.includes('pharma') || lower.includes('apollo') || lower.includes('doctor')) category = 'Health';
+            else if (isCredit) category = 'Salary';
+
+            // 5. Payment Mode
+            let mode = 'UPI';
+            if (lower.includes('credit card') || lower.includes('card')) mode = 'Credit Card';
+            else if (lower.includes('debit card')) mode = 'Debit Card';
+            else if (lower.includes('paytm')) mode = 'Paytm';
+            else if (lower.includes('phonepe')) mode = 'PhonePe';
+            else if (lower.includes('amazon pay')) mode = 'Amazon Pay';
+
+            currentParsedTx = {
+                amount: amount,
+                title: merchant,
+                category: category,
+                type: type,
+                paymentMode: mode,
+                notes: 'Parsed from SMS',
+                isSmsParsed: true,
+                date: new Date().toISOString().split('T')[0],
+                timestamp: Date.now()
+            };
+
+            // Display preview box
+            document.getElementById('parsedAmount').innerText = '₹' + amount.toLocaleString('en-IN');
+            document.getElementById('parsedTitle').innerText = merchant;
+            document.getElementById('parsedCategory').innerText = category;
+            document.getElementById('parsedMode').innerText = mode;
+            const badge = document.getElementById('parsedTypeBadge');
+            badge.innerText = type;
+            if (type === 'INCOME') {
+                badge.className = 'px-2 py-0.5 rounded-md text-[11px] font-extrabold bg-emerald-100 text-emerald-800';
+            } else {
+                badge.className = 'px-2 py-0.5 rounded-md text-[11px] font-extrabold bg-red-100 text-red-800';
+            }
+
+            document.getElementById('parsedPreviewBox').classList.remove('hidden');
+            document.getElementById('saveParsedBtn').disabled = (amount <= 0);
+        };
+
+        window.saveParsedTransaction = async () => {
+            if (!currentUser) {
+                alert('Pehle login karein taaki hisaab aapke account me save ho sake!');
+                window.openAuthModal('login');
+                return;
+            }
+            if (!currentParsedTx) return;
+
+            const txRef = ref(db, `users/${currentUser.uid}/transactions`);
+            const newRef = push(txRef);
+            await set(newRef, currentParsedTx);
+
+            alert(`✅ ${currentParsedTx.title} (₹${currentParsedTx.amount}) hisaab me jud gaya!`);
+            document.getElementById('rawSmsInput').value = '';
+            document.getElementById('parsedPreviewBox').classList.add('hidden');
+            document.getElementById('saveParsedBtn').disabled = true;
+            currentParsedTx = null;
+        };
+
+        window.loadSampleSms = (idx) => {
+            const samples = {
+                1: "A/c *4589 debited by Rs 420.00 on 12-Oct-26 via UPI to SWIGGY Ref 429381048291. Avail Bal: Rs 14,290.",
+                2: "Spent Rs 2,499.00 on your Credit Card ending 8012 at AMAZON INDIA on 12-Oct-26. Avail Limit: Rs 78,000.",
+                3: "Your A/c *4589 is credited with Rs 45,000.00 on 01-Oct-26 towards SALARY Oct by TCS LTD. Avail Bal: Rs 59,290."
+            };
+            document.getElementById('rawSmsInput').value = samples[idx] || '';
+            window.parseSmsText();
+        };
+
+        window.switchTab = (tab) => {
+            ['Transactions', 'Growth', 'Bills'].forEach(t => {
+                const btn = document.getElementById('tabBtn' + t);
+                const content = document.getElementById('tabContent' + t);
+                if (t.toLowerCase() === tab) {
+                    btn.classList.add('tab-active');
+                    content.classList.remove('hidden');
+                } else {
+                    btn.classList.remove('tab-active');
+                    content.classList.add('hidden');
+                }
+            });
+        };
+
+        window.openProModal = () => {
+            document.getElementById('proModal').classList.remove('hidden');
+            document.getElementById('proModal').classList.add('flex');
+        };
+
+        window.closeProModal = () => {
+            document.getElementById('proModal').classList.add('hidden');
+            document.getElementById('proModal').classList.remove('flex');
+        };
+
+        window.submitProPayment = async () => {
+            if (!currentUser) {
+                alert('Pehle login karein!');
+                window.openAuthModal('login');
+                return;
+            }
+            const txn = document.getElementById('proTxnId').value.trim();
+            const utr = document.getElementById('proUtr').value.trim();
+            if (!txn || !utr) {
+                alert('Please enter Txn ID and UTR Number');
+                return;
+            }
+
+            const reqRef = ref(db, `proRequests/${currentUser.uid}`);
+            await set(reqRef, {
+                userId: currentUser.uid,
+                userEmail: currentUser.email || '',
+                txnId: txn,
+                utrNumber: utr,
+                amount: "15",
+                status: "PENDING",
+                requestedAt: Date.now()
+            });
+
+            alert('✅ Payment request submitted! Admin team verify karke approve kar degi.');
+            window.closeProModal();
+        };
+
+        window.openManualAddModal = async () => {
+            if (!currentUser) {
+                alert('Pehle login karein!');
+                window.openAuthModal('login');
+                return;
+            }
+            const title = prompt("Expense / Income Name (e.g. Doodh / Rashan):", "Groceries");
+            if (!title) return;
+            const amtStr = prompt("Amount (₹):", "250");
+            const amt = parseFloat(amtStr);
+            if (!amt || isNaN(amt)) return;
+
+            const isInc = confirm("Kya ye Income hai? (OK for Income, Cancel for Expense)");
+            const newTx = {
+                title: title,
+                amount: amt,
+                type: isInc ? "INCOME" : "EXPENSE",
+                category: isInc ? "Salary" : "Groceries",
+                paymentMode: "Cash",
+                date: new Date().toISOString().split('T')[0],
+                timestamp: Date.now()
+            };
+            const txRef = ref(db, `users/${currentUser.uid}/transactions`);
+            await set(push(txRef), newTx);
+            alert("✅ Entry added successfully!");
+        };
+
+        window.openManualBillModal = async () => {
+            if (!currentUser) {
+                alert('Pehle login karein!');
+                window.openAuthModal('login');
+                return;
+            }
+            const title = prompt("Bill Title (e.g. Bijli Bill):", "Electricity Bill");
+            if (!title) return;
+            const amt = parseFloat(prompt("Bill Amount (₹):", "1500"));
+            if (!amt || isNaN(amt)) return;
+
+            const newBill = {
+                title: title,
+                amount: amt,
+                dueDate: "25th of month",
+                paid: false,
+                timestamp: Date.now()
+            };
+            const bRef = ref(db, `users/${currentUser.uid}/bills`);
+            await set(push(bRef), newBill);
+            alert("✅ Bill added successfully!");
+        };
+    </script>
+</body>
+</html>
