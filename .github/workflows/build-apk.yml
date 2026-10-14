@@ -1,18 +1,24 @@
-name: Build Debug APK
+name: Build APK and Deploy Website
 
 on:
   push:
     branches: [ "main", "master" ]
   pull_request:
     branches: [ "main", "master" ]
-  workflow_dispatch: # Mobile se 1-click trigger ke liye
+  workflow_dispatch: # Mobile ya GitHub UI se 1-click trigger
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
 
 jobs:
-  build:
-    name: Build Android Debug APK
+  build-and-deploy:
+    name: Build Android APK & Deploy Website
     runs-on: ubuntu-latest
 
     steps:
@@ -66,7 +72,7 @@ jobs:
           cd "$PROJECT_DIR"
           ./gradlew assembleDebug --no-daemon --stacktrace
 
-      - name: Locate and Prepare Debug APK
+      - name: Locate and Prepare APK for Website & Releases
         id: prepare_apk
         run: |
           APK_FILE=$(find . -name "*.apk" -type f | grep -E "debug|app-debug" | head -n 1)
@@ -75,14 +81,16 @@ jobs:
           fi
           echo "Found APK at: $APK_FILE"
           mkdir -p output_apk
-          cp "$APK_FILE" output_apk/HomeExpenseTracker-debug.apk
-          echo "apk_path=output_apk/HomeExpenseTracker-debug.apk" >> $GITHUB_OUTPUT
+          mkdir -p public
+          cp "$APK_FILE" output_apk/Pockethome-debug.apk
+          cp "$APK_FILE" public/pockethome.apk
+          echo "apk_path=output_apk/Pockethome-debug.apk" >> $GITHUB_OUTPUT
 
-      - name: Upload Debug APK as Artifact
+      - name: Upload Debug APK as GitHub Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: HomeExpenseTracker-debug-apk
-          path: output_apk/HomeExpenseTracker-debug.apk
+          name: Pockethome-debug-apk
+          path: output_apk/Pockethome-debug.apk
           if-no-files-found: error
           retention-days: 30
 
@@ -91,16 +99,32 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-v${{ github.run_number }}
-          name: Home Expense Tracker Debug APK (Build #${{ github.run_number }})
+          name: Pockethome Android App v1.0 (Build #${{ github.run_number }})
           body: |
-            ### 📱 Home Expense Tracker - Debug APK
+            ### 📱 Pockethome - Smart Indian Home Expense Tracker & AI Money Growth
 
             Download the standalone APK directly below to install on your mobile phone without unzipping:
-            
-            - **File**: `HomeExpenseTracker-debug.apk`
+
+            - **File**: `Pockethome-debug.apk`
             - **Commit**: `${{ github.sha }}`
             - **Build**: `#${{ github.run_number }}`
-          files: output_apk/HomeExpenseTracker-debug.apk
+          files: output_apk/Pockethome-debug.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      - name: Setup GitHub Pages
+        if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+        uses: actions/configure-pages@v5
+
+      - name: Upload Website Artifact for GitHub Pages
+        if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './public'
+
+      - name: Deploy to GitHub Pages
+        if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+        id: deployment
+        uses: actions/deploy-pages@v4
         continue-on-error: true

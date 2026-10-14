@@ -50,10 +50,14 @@
                 </div>
             </div>
 
-            <div class="flex items-center space-x-3">
+            <div class="flex items-center space-x-2 sm:space-x-3">
+                <a href="./pockethome.apk" download="Pockethome.apk" class="inline-flex items-center space-x-1.5 px-3 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm transition">
+                    <span>📲</span>
+                    <span>Install App</span>
+                </a>
                 <div id="authLoggedOut" class="flex items-center space-x-2">
-                    <button onclick="openAuthModal('login')" class="px-4 py-2 text-sm font-semibold text-primary hover:bg-blue-50 rounded-lg transition">Login</button>
-                    <button onclick="openAuthModal('signup')" class="px-4 py-2 text-sm font-semibold text-white bg-primary hover:bg-primaryDark rounded-lg shadow-sm transition">Sign Up</button>
+                    <button onclick="openAuthModal('login')" class="px-3 py-1.5 text-xs sm:text-sm font-semibold text-primary hover:bg-blue-50 rounded-lg transition">Login</button>
+                    <button onclick="openAuthModal('signup')" class="px-3 py-1.5 text-xs sm:text-sm font-semibold text-white bg-primary hover:bg-primaryDark rounded-lg shadow-sm transition">Sign Up</button>
                 </div>
                 <div id="authLoggedIn" class="hidden flex items-center space-x-3">
                     <span id="navUserEmail" class="text-sm font-medium text-slate-600 hidden md:inline"></span>
@@ -77,12 +81,15 @@
                     Phone me Pockethome Android app install karein jisse sabhi Bank, UPI, Wallets ke SMS automatically sync ho jayein. Yahan website par sabhi transactions live dikhenge!
                 </p>
             </div>
-            <div class="flex items-center space-x-2 w-full md:w-auto justify-center">
-                <button onclick="document.getElementById('smsParserSection').scrollIntoView({behavior: 'smooth'})" class="px-4 py-2.5 text-xs sm:text-sm font-bold bg-white text-slate-900 rounded-xl hover:bg-slate-100 shadow transition flex items-center space-x-1.5">
-                    <span>💬 SMS Message Paste Karein</span>
+            <div class="flex flex-wrap items-center space-x-2 w-full md:w-auto justify-center gap-2">
+                <a href="./pockethome.apk" download="Pockethome.apk" class="px-4 py-2.5 text-xs sm:text-sm font-extrabold bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white rounded-xl shadow-lg shadow-green-600/30 transition flex items-center space-x-1.5">
+                    <span>📲 Install App (APK)</span>
+                </a>
+                <button onclick="document.getElementById('smsParserSection').scrollIntoView({behavior: 'smooth'})" class="px-3.5 py-2.5 text-xs sm:text-sm font-bold bg-white text-slate-900 rounded-xl hover:bg-slate-100 shadow transition flex items-center space-x-1.5">
+                    <span>💬 SMS Paste</span>
                 </button>
-                <button onclick="openProModal()" class="px-4 py-2.5 text-xs sm:text-sm font-bold bg-amber-500 hover:bg-amber-600 text-white rounded-xl shadow transition">
-                    <span>PRO Plan (₹15/mo)</span>
+                <button onclick="openProModal()" class="px-3.5 py-2.5 text-xs sm:text-sm font-bold bg-amber-500 hover:bg-amber-600 text-white rounded-xl shadow transition">
+                    <span>PRO (₹15/mo)</span>
                 </button>
             </div>
         </div>
@@ -321,10 +328,55 @@
             </div>
         </div>
 
+        <!-- Dedicated Android App Download Card -->
+        <div class="bg-gradient-to-br from-slate-900 to-blue-950 text-white rounded-2xl p-6 shadow-xl border border-blue-900/50 flex flex-col md:flex-row items-center justify-between gap-6">
+            <div class="flex items-center space-x-4">
+                <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-primary to-blue-500 flex items-center justify-center text-white font-black text-3xl shadow-lg shadow-blue-500/30 shrink-0">
+                    P
+                </div>
+                <div>
+                    <div class="flex items-center space-x-2">
+                        <h3 class="text-lg sm:text-xl font-extrabold text-white">Download Pockethome Android App</h3>
+                        <span class="text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full">v1.0 APK</span>
+                    </div>
+                    <p class="text-xs sm:text-sm text-slate-300 mt-1">Phone me install karein aur sabhi Bank, UPI, SMS messages ka auto hisaab paayein. Safe, secure aur 100% private.</p>
+                    <div class="flex items-center space-x-3 text-[11px] text-slate-400 mt-2">
+                        <span>🛡️ Virus Free & Verified</span>
+                        <span>•</span>
+                        <span>📦 ~29 MB</span>
+                        <span>•</span>
+                        <span>⚡ Direct Download</span>
+                    </div>
+                </div>
+            </div>
+            <div class="shrink-0 w-full md:w-auto">
+                <a href="./pockethome.apk" download="Pockethome.apk" class="w-full md:w-auto px-6 py-3.5 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white text-sm font-extrabold rounded-xl shadow-lg shadow-green-600/30 transition flex items-center justify-center space-x-2">
+                    <span class="text-lg">📲</span>
+                    <span>Download App (APK)</span>
+                </a>
+            </div>
+        </div>
+
     </main>
 
+    <!-- Mobile Sticky Install Bar -->
+    <div id="mobileInstallSticky" class="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 px-4 py-2.5 shadow-2xl z-40 flex items-center justify-between sm:hidden">
+        <div class="flex items-center space-x-2.5">
+            <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-primary to-blue-500 flex items-center justify-center text-white font-bold text-sm shadow">
+                P
+            </div>
+            <div>
+                <p class="text-xs font-bold text-slate-900 leading-tight">Pockethome App</p>
+                <p class="text-[10px] text-slate-500">Auto SMS sync hisaab</p>
+            </div>
+        </div>
+        <a href="./pockethome.apk" download="Pockethome.apk" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold rounded-xl shadow-md transition flex items-center space-x-1.5">
+            <span>⬇️ Install APK</span>
+        </a>
+    </div>
+
     <!-- Footer -->
-    <footer class="bg-white border-t border-slate-200 py-6 mt-auto text-center text-xs text-slate-400">
+    <footer class="bg-white border-t border-slate-200 py-6 mb-14 sm:mb-0 mt-auto text-center text-xs text-slate-400">
         <p>© 2026 Pockethome • Smart Indian Home Expense Tracker & Wealth Advisor</p>
     </footer>
 
