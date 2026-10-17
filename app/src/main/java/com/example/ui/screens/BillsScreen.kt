@@ -240,6 +240,9 @@ fun BillsScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .clickable {
+                                    if (!isPro) onUpgradeClicked()
+                                }
                                 .padding(horizontal = 16.dp, vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
@@ -261,13 +264,27 @@ fun BillsScreen(
                                 }
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Column {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = "Automatic Bill Reminders",
+                                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Surface(
+                                            shape = RoundedCornerShape(4.dp),
+                                            color = if (isPro) Color(0xFF10B981).copy(alpha = 0.15f) else Color(0xFFF97316).copy(alpha = 0.15f)
+                                        ) {
+                                            Text(
+                                                text = if (isPro) "PRO ACTIVE" else "PRO ⭐ (₹15/mo)",
+                                                color = if (isPro) Color(0xFF10B981) else Color(0xFFF97316),
+                                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, fontWeight = FontWeight.Bold),
+                                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
                                     Text(
-                                        text = "Automatic Bill Reminders",
-                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Text(
-                                        text = "Get notified before due date so you never miss a bill",
+                                        text = if (isPro) "Get notified 3 days before due date" else "WhatsApp & notification alerts (Available in PRO)",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -275,8 +292,14 @@ fun BillsScreen(
                             }
 
                             Switch(
-                                checked = autoRemindersEnabled,
-                                onCheckedChange = { autoRemindersEnabled = it },
+                                checked = if (isPro) autoRemindersEnabled else false,
+                                onCheckedChange = {
+                                    if (!isPro) {
+                                        onUpgradeClicked()
+                                    } else {
+                                        autoRemindersEnabled = it
+                                    }
+                                },
                                 colors = SwitchDefaults.colors(
                                     checkedThumbColor = Color.White,
                                     checkedTrackColor = BrandOrange

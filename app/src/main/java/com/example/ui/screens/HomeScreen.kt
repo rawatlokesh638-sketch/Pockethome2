@@ -174,7 +174,8 @@ fun HomeScreen(
                 scannedCount = uiState.scannedSmsCount,
                 onRequestPermissions = {
                     onRequestSmsPermissions()
-                }
+                },
+                onOpenProSheet = onOpenProSheet
             )
         }
 
@@ -377,7 +378,8 @@ private fun AutoTrackSmsCard(
     isPro: Boolean,
     hasSms: Boolean,
     scannedCount: Int,
-    onRequestPermissions: () -> Unit
+    onRequestPermissions: () -> Unit,
+    onOpenProSheet: () -> Unit
 ) {
     Card(
         modifier = Modifier
@@ -385,9 +387,9 @@ private fun AutoTrackSmsCard(
             .padding(horizontal = 20.dp),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (isPro) RoyalBlue.copy(alpha = 0.08f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+            containerColor = if (isPro) RoyalBlue.copy(alpha = 0.08f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
         ),
-        border = androidx.compose.foundation.BorderStroke(1.dp, if (isPro) RoyalBlue.copy(alpha = 0.3f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+        border = androidx.compose.foundation.BorderStroke(1.dp, if (isPro) RoyalBlue.copy(alpha = 0.3f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
     ) {
         Column(
             modifier = Modifier
@@ -416,22 +418,25 @@ private fun AutoTrackSmsCard(
                 Column(modifier = Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = if (isPro) "All Transactions SMS Auto-Sync (PRO Active ⭐)" else "All Transactions SMS Auto-Sync",
+                            text = "All Transactions SMS Auto-Sync",
                             style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
                             color = MaterialTheme.colorScheme.onSurface
                         )
-                        if (hasSms) {
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Icon(
-                                imageVector = Icons.Default.CheckCircle,
-                                contentDescription = "Active",
-                                tint = MoneyGreen,
-                                modifier = Modifier.size(16.dp)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = if (isPro) Color(0xFF10B981).copy(alpha = 0.15f) else Color(0xFF1D4ED8).copy(alpha = 0.15f)
+                        ) {
+                            Text(
+                                text = if (isPro) "PRO ACTIVE" else "PRO ⭐ (₹15/mo)",
+                                color = if (isPro) Color(0xFF10B981) else Color(0xFF1D4ED8),
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, fontWeight = FontWeight.Bold),
+                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
                             )
                         }
                     }
                     Text(
-                        text = "Bank, UPI, Amazon, Wallets & Cards ke sabhi messages auto-track honge!",
+                        text = if (isPro) "Bank, UPI, Amazon, Wallets & Cards ke sabhi messages auto-track honge!" else "Bank & UPI SMS automatic continuous tracker (Included in PRO)",
                         style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -440,28 +445,56 @@ private fun AutoTrackSmsCard(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            Button(
-                onClick = onRequestPermissions,
-                shape = RoundedCornerShape(10.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = RoyalBlue
-                ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(38.dp)
-                    .testTag("grant_sms_permissions_btn")
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.Sms,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = if (hasSms) "Scan & Sync All SMS ($scannedCount synced)" else "Allow SMS Access to Auto-Track",
-                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)
-                    )
+            if (isPro) {
+                Button(
+                    onClick = onRequestPermissions,
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = RoyalBlue
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(38.dp)
+                        .testTag("grant_sms_permissions_btn")
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Sms,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = if (hasSms) "Scan & Sync All SMS ($scannedCount synced)" else "Allow SMS Access to Auto-Track",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)
+                        )
+                    }
+                }
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onRequestPermissions,
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(38.dp)
+                    ) {
+                        Text(if (hasSms) "Permission Granted ✅" else "Grant Permission", style = MaterialTheme.typography.labelSmall)
+                    }
+
+                    Button(
+                        onClick = onOpenProSheet,
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(38.dp)
+                    ) {
+                        Text("Unlock PRO (₹15)", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold))
+                    }
                 }
             }
         }

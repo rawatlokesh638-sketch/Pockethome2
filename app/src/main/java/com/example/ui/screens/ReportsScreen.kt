@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import android.content.Intent
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -13,7 +14,9 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.TableChart
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -23,6 +26,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -137,6 +141,135 @@ fun ReportsScreen(
                             onClick = { onTimeframeSelected(ReportsTimeframe.YEARLY) },
                             modifier = Modifier.weight(1f)
                         )
+                    }
+                }
+
+                // Export to PDF / Excel (PRO Feature)
+                item {
+                    val context = LocalContext.current
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, if (isPro) RoyalBlue.copy(alpha = 0.3f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.Description,
+                                        contentDescription = null,
+                                        tint = RoyalBlue,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "Export Report (PDF & Excel)",
+                                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = if (isPro) Color(0xFF10B981).copy(alpha = 0.15f) else Color(0xFF1D4ED8).copy(alpha = 0.15f)
+                                ) {
+                                    Text(
+                                        text = if (isPro) "PRO ACTIVE" else "PRO ⭐ (₹15/mo)",
+                                        color = if (isPro) Color(0xFF10B981) else Color(0xFF1D4ED8),
+                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, fontWeight = FontWeight.Bold),
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = if (isPro) "Download clean financial summary for ${uiState.activeMonthDisplay}" else "Download clean monthly PDF / Excel spreadsheet (Available in PRO)",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                OutlinedButton(
+                                    onClick = {
+                                        if (!isPro) {
+                                            onUpgradeClicked()
+                                        } else {
+                                            val reportText = buildString {
+                                                appendLine("====================================")
+                                                appendLine("POCKETHOME EXPENSE REPORT (${uiState.activeMonthDisplay})")
+                                                appendLine("====================================")
+                                                appendLine("Total Income: ₹${uiState.currentMonthIncome.toInt()}")
+                                                appendLine("Total Expenses: ₹${uiState.currentMonthExpenses.toInt()}")
+                                                appendLine("Remaining Balance: ₹${uiState.remainingBalance.toInt()}")
+                                                appendLine("Budget: ₹${uiState.monthlyBudget.toInt()} (${uiState.budgetUsedPercent.toInt()}% used)")
+                                                appendLine("\n--- CATEGORY BREAKDOWN ---")
+                                                uiState.categoryBreakdown.forEach {
+                                                    appendLine("${it.categoryName}: ₹${it.totalAmount.toInt()} (${it.percentage.toInt()}%)")
+                                                }
+                                                appendLine("\nGenerated via Pockethome PRO ✨")
+                                            }
+                                            val sendIntent = Intent().apply {
+                                                action = Intent.ACTION_SEND
+                                                putExtra(Intent.EXTRA_TEXT, reportText)
+                                                putExtra(Intent.EXTRA_SUBJECT, "Pockethome Monthly Report - ${uiState.activeMonthDisplay}")
+                                                type = "text/plain"
+                                            }
+                                            context.startActivity(Intent.createChooser(sendIntent, "Export Report via"))
+                                        }
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Icon(imageVector = Icons.Default.Description, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Export PDF", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold))
+                                }
+
+                                Button(
+                                    onClick = {
+                                        if (!isPro) {
+                                            onUpgradeClicked()
+                                        } else {
+                                            val csvContent = buildString {
+                                                appendLine("Category,Amount,Percentage")
+                                                uiState.categoryBreakdown.forEach {
+                                                    appendLine("${it.categoryName},${it.totalAmount},${it.percentage}%")
+                                                }
+                                                appendLine("TOTAL_EXPENSE,${uiState.currentMonthExpenses},100%")
+                                                appendLine("TOTAL_INCOME,${uiState.currentMonthIncome},-")
+                                                appendLine("BALANCE,${uiState.remainingBalance},-")
+                                            }
+                                            val sendIntent = Intent().apply {
+                                                action = Intent.ACTION_SEND
+                                                putExtra(Intent.EXTRA_TEXT, csvContent)
+                                                putExtra(Intent.EXTRA_SUBJECT, "Pockethome_Expenses_${uiState.activeMonthDisplay}.csv")
+                                                type = "text/csv"
+                                            }
+                                            context.startActivity(Intent.createChooser(sendIntent, "Export Excel / CSV via"))
+                                        }
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue)
+                                ) {
+                                    Icon(imageVector = Icons.Default.TableChart, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Export Excel", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold))
+                                }
+                            }
+                        }
                     }
                 }
 

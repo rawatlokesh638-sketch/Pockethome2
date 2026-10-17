@@ -271,8 +271,10 @@ fun DashboardScreen(
                                     AppTab.BUDGET -> {
                                         BudgetScreen(
                                             uiState = uiState,
+                                            isPro = uiState.isProUser,
                                             onBack = { viewModel.selectTab(AppTab.HOME) },
-                                            onEditBudgetClicked = { showEditBudgetDialog = true }
+                                            onEditBudgetClicked = { showEditBudgetDialog = true },
+                                            onUpgradeClicked = { showProPlanSheet = true }
                                         )
                                     }
                                 }
