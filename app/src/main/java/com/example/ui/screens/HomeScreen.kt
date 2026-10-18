@@ -182,10 +182,12 @@ fun HomeScreen(
         // 2b. AI Daily Money Growth & Wealth Advisor Banner (Comprehensive & Unhidden)
         item(key = "ai_money_growth_banner") {
             AiMoneyGrowthBannerCard(
+                isPro = proStatus.isPro || proStatus.status == "ACTIVE",
                 monthlyIncome = uiState.currentMonthIncome,
                 monthlyExpenses = uiState.currentMonthExpenses,
                 categorySpends = uiState.categoryBreakdown,
-                onOpenAdvisor = onOpenAiGrowthAdvisor
+                onOpenAdvisor = onOpenAiGrowthAdvisor,
+                onOpenProSheet = onOpenProSheet
             )
         }
 
@@ -445,7 +447,40 @@ private fun AutoTrackSmsCard(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            if (isPro) {
+            if (hasSms) {
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = Color(0xFF10B981).copy(alpha = 0.12f),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.35f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 9.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF10B981))
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "⚡ Real-Time Auto Sync Active (No Button Needed)",
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, color = Color(0xFF047857))
+                            )
+                            Text(
+                                text = "Naya bank/UPI SMS aane par apne aap real-time me entry add hoti rahegi. ($scannedCount synced)",
+                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            } else if (isPro) {
                 Button(
                     onClick = onRequestPermissions,
                     shape = RoundedCornerShape(10.dp),
@@ -465,7 +500,7 @@ private fun AutoTrackSmsCard(
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = if (hasSms) "Scan & Sync All SMS ($scannedCount synced)" else "Allow SMS Access to Auto-Track",
+                            text = "Enable Real-Time SMS Auto-Track",
                             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)
                         )
                     }
@@ -482,7 +517,7 @@ private fun AutoTrackSmsCard(
                             .weight(1f)
                             .height(38.dp)
                     ) {
-                        Text(if (hasSms) "Permission Granted ✅" else "Grant Permission", style = MaterialTheme.typography.labelSmall)
+                        Text("Enable SMS Auto-Sync", style = MaterialTheme.typography.labelSmall)
                     }
 
                     Button(
@@ -844,10 +879,12 @@ private fun TransactionRowItem(
 
 @Composable
 private fun AiMoneyGrowthBannerCard(
+    isPro: Boolean,
     monthlyIncome: Double,
     monthlyExpenses: Double,
     categorySpends: List<CategorySpend>,
-    onOpenAdvisor: () -> Unit
+    onOpenAdvisor: () -> Unit,
+    onOpenProSheet: () -> Unit
 ) {
     val report = remember(monthlyIncome, monthlyExpenses, categorySpends) {
         AiWealthGrowthAdvisor.generateDailyReport(monthlyIncome, monthlyExpenses, categorySpends)
@@ -863,7 +900,7 @@ private fun AiMoneyGrowthBannerCard(
         colors = CardDefaults.cardColors(
             containerColor = Color(0xFF132F23).copy(alpha = 0.08f)
         ),
-        border = androidx.compose.foundation.BorderStroke(1.5.dp, MoneyGreen.copy(alpha = 0.45f))
+        border = androidx.compose.foundation.BorderStroke(1.5.dp, if (isPro) MoneyGreen.copy(alpha = 0.45f) else RoyalBlue.copy(alpha = 0.35f))
     ) {
         Column(
             modifier = Modifier
@@ -902,11 +939,11 @@ private fun AiMoneyGrowthBannerCard(
                             Spacer(modifier = Modifier.width(6.dp))
                             Surface(
                                 shape = RoundedCornerShape(6.dp),
-                                color = MoneyGreen.copy(alpha = 0.15f)
+                                color = if (isPro) Color(0xFF10B981).copy(alpha = 0.15f) else Color(0xFF1D4ED8).copy(alpha = 0.15f)
                             ) {
                                 Text(
-                                    text = "LIVE",
-                                    color = MoneyGreen,
+                                    text = if (isPro) "PRO ACTIVE ⭐" else "PRO ⭐ (₹15/mo)",
+                                    color = if (isPro) Color(0xFF10B981) else Color(0xFF1D4ED8),
                                     style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 9.sp),
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                 )
@@ -1107,7 +1144,7 @@ private fun AiMoneyGrowthBannerCard(
             Button(
                 onClick = onOpenAdvisor,
                 shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = MoneyGreen),
+                colors = ButtonDefaults.buttonColors(containerColor = if (isPro) MoneyGreen else RoyalBlue),
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(46.dp)
@@ -1115,7 +1152,7 @@ private fun AiMoneyGrowthBannerCard(
                 Icon(imageVector = Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Open Full Wealth Simulator (SIP Calculator) ➔",
+                    text = if (isPro) "Open Full Wealth Simulator (SIP Calculator) ➔" else "Unlock AI Wealth Advisor (PRO ₹15/mo) ➔",
                     style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
                 )
             }

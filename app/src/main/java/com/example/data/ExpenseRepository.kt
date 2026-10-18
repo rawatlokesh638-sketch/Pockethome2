@@ -231,6 +231,18 @@ class ExpenseRepository(private val context: Context) {
         }
     }
 
+    fun isProActive(userId: String = ""): Boolean {
+        val targetId = userId.ifEmpty { getActiveUserId() }
+        val ps = _localProStatus.value
+        if (ps.isPro || ps.status == "ACTIVE") return true
+        val proStatusJson = prefs.getString("cached_pro_status_$targetId", null)
+        if (!proStatusJson.isNullOrEmpty()) {
+            val cachedPs = proStatusAdapter.fromJson(proStatusJson)
+            return cachedPs?.isPro == true || cachedPs?.status == "ACTIVE"
+        }
+        return false
+    }
+
     fun attachRtdbListeners(userId: String) {
         val database = rtdb ?: return
         val userRef = database.reference.child("users").child(userId)

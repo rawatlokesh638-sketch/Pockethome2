@@ -32,7 +32,21 @@
         .tab-active { border-bottom: 3px solid #1D4ED8; color: #1D4ED8; font-weight: 700; }
     </style>
 </head>
-<body class="text-slate-800 antialiased min-h-screen flex flex-col">
+<body class="text-slate-800 antialiased min-h-screen flex flex-col pb-16 sm:pb-0">
+
+    <!-- Top High-Visibility Download Banner (At the very top) -->
+    <div class="bg-gradient-to-r from-emerald-700 via-emerald-600 to-teal-700 text-white text-xs sm:text-sm font-semibold px-4 py-2.5 shadow-md">
+        <div class="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-center sm:text-left">
+            <div class="flex items-center space-x-2 justify-center sm:justify-start">
+                <span class="bg-amber-400 text-slate-900 text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider animate-pulse">LATEST APK v2.5</span>
+                <span>📲 <strong>Install Pockethome on Phone:</strong> Real-Time Auto SMS Sync + AI Wealth Advisor (No button press required)</span>
+            </div>
+            <a href="./pockethome.apk" download="Pockethome.apk" class="inline-flex items-center space-x-2 bg-white text-emerald-800 hover:bg-emerald-50 px-4 py-1.5 rounded-xl text-xs font-extrabold shadow-sm hover:scale-105 transition transform">
+                <span>⚡ 1-Tap Install APK</span>
+                <span class="text-[10px] bg-emerald-100 text-emerald-900 px-1.5 py-0.5 rounded font-bold">29 MB</span>
+            </a>
+        </div>
+    </div>
 
     <!-- Top Navigation Bar -->
     <header class="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm">
@@ -51,9 +65,10 @@
             </div>
 
             <div class="flex items-center space-x-2 sm:space-x-3">
-                <a href="./pockethome.apk" download="Pockethome.apk" class="inline-flex items-center space-x-1.5 px-3 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm transition">
-                    <span>📲</span>
+                <a href="./pockethome.apk" download="Pockethome.apk" class="inline-flex items-center space-x-2 px-3.5 py-2 text-xs sm:text-sm font-extrabold text-white bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 rounded-xl shadow-md shadow-emerald-600/25 transition transform hover:-translate-y-0.5">
+                    <span class="text-base">📲</span>
                     <span>Install App</span>
+                    <span class="w-2 h-2 rounded-full bg-emerald-300 animate-ping"></span>
                 </a>
                 <div id="authLoggedOut" class="flex items-center space-x-2">
                     <button onclick="openAuthModal('login')" class="px-3 py-1.5 text-xs sm:text-sm font-semibold text-primary hover:bg-blue-50 rounded-lg transition">Login</button>
@@ -858,5 +873,19 @@
             alert("✅ Bill added successfully!");
         };
     </script>
+
+    <!-- Mobile Sticky Floating Download Bar (Appears on Phones) -->
+    <div class="fixed bottom-3 inset-x-3 sm:hidden z-50">
+        <a href="./pockethome.apk" download="Pockethome.apk" class="flex items-center justify-between bg-gradient-to-r from-emerald-600 via-green-600 to-emerald-700 text-white p-3 rounded-2xl shadow-2xl border border-emerald-400/40">
+            <div class="flex items-center space-x-2.5">
+                <span class="text-2xl">📲</span>
+                <div>
+                    <p class="text-xs font-black leading-tight">Install Pockethome (APK)</p>
+                    <p class="text-[10px] text-emerald-100">Real-Time SMS Sync • No button press needed</p>
+                </div>
+            </div>
+            <span class="bg-white text-emerald-800 text-xs font-extrabold px-3 py-1.5 rounded-xl shadow-md">Install ⚡</span>
+        </a>
+    </div>
 </body>
 </html>

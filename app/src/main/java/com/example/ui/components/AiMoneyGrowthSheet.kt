@@ -23,11 +23,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.service.AiWealthGrowthAdvisor
-import com.example.service.AssetAllocationItem
-import com.example.service.GrowthMilestone
-import com.example.service.MoneyLeakTip
-import com.example.service.WealthAdviceReport
+import java.util.Locale
+import com.example.service.*
 import com.example.ui.CategorySpend
 import com.example.ui.DashboardViewModel
 import com.example.ui.theme.*
@@ -36,22 +33,37 @@ import kotlin.math.roundToInt
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AiMoneyGrowthSheet(
+    isPro: Boolean = false,
     monthlyIncome: Double,
     monthlyExpenses: Double,
     categorySpends: List<CategorySpend>,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onUpgradeClicked: () -> Unit = {}
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    val baseReport = remember(monthlyIncome, monthlyExpenses, categorySpends) {
+    val report = remember(monthlyIncome, monthlyExpenses, categorySpends) {
         AiWealthGrowthAdvisor.generateDailyReport(monthlyIncome, monthlyExpenses, categorySpends)
     }
 
-    var customMonthlyAmount by remember { mutableStateOf(baseReport.monthlySavingsCapacity) }
-    var selectedTimelineYears by remember { mutableStateOf(5) }
+    var selectedRiskProfile by remember { mutableStateOf("MODERATE") } // CONSERVATIVE, MODERATE, AGGRESSIVE
+    var customMonthlyAmount by remember { mutableStateOf(report.monthlySavingsCapacity) }
+    var adjustForInflation by remember { mutableStateOf(false) }
 
-    val dynamicTimeline = remember(customMonthlyAmount) {
-        AiWealthGrowthAdvisor.calculateTimeline(customMonthlyAmount, annualReturnRate = 0.12)
+    val currentAnnualRate = when (selectedRiskProfile) {
+        "CONSERVATIVE" -> 0.085
+        "AGGRESSIVE" -> 0.135
+        else -> 0.115
+    }
+
+    val dynamicTimeline = remember(customMonthlyAmount, currentAnnualRate) {
+        AiWealthGrowthAdvisor.calculateTimeline(customMonthlyAmount, annualReturnRate = currentAnnualRate)
+    }
+
+    val currentAllocations = when (selectedRiskProfile) {
+        "CONSERVATIVE" -> report.conservativeAllocations
+        "AGGRESSIVE" -> report.aggressiveAllocations
+        else -> report.moderateAllocations
     }
 
     ModalBottomSheet(
@@ -76,23 +88,23 @@ fun AiMoneyGrowthSheet(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         modifier = Modifier
-                            .size(44.dp)
+                            .size(46.dp)
                             .clip(CircleShape)
-                            .background(Brush.linearGradient(listOf(Color(0xFF2E7D32), RoyalBlue))),
+                            .background(Brush.linearGradient(listOf(Color(0xFF047857), RoyalBlue))),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Default.TrendingUp,
                             contentDescription = "Money Growth",
                             tint = Color.White,
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(26.dp)
                         )
                     }
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = "AI Money Growth Advisor",
+                                text = "Institutional AI Advisor",
                                 style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
                                 color = MaterialTheme.colorScheme.onSurface
                             )
@@ -102,7 +114,7 @@ fun AiMoneyGrowthSheet(
                                 color = MoneyGreen.copy(alpha = 0.15f)
                             ) {
                                 Text(
-                                    text = "LIVE",
+                                    text = "PRO WEALTH",
                                     color = MoneyGreen,
                                     style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 9.sp),
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -110,7 +122,7 @@ fun AiMoneyGrowthSheet(
                             }
                         }
                         Text(
-                            text = "Daily Wealth Strategy • Kaha Lagao, Kaha Bachao",
+                            text = "Executive Financial Roadmap & Wealth Creation",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -122,34 +134,130 @@ fun AiMoneyGrowthSheet(
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
-            // 1. Daily AI Strategy Card
+            if (!isPro) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.cardColors(containerColor = RoyalBlue.copy(alpha = 0.08f)),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, RoyalBlue.copy(alpha = 0.3f))
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onUpgradeClicked() }
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = Color(0xFF1D4ED8).copy(alpha = 0.15f)
+                            ) {
+                                Text(
+                                    text = "PRO ⭐ (₹15/mo)",
+                                    color = Color(0xFF1D4ED8),
+                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, fontWeight = FontWeight.Bold),
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Preview Mode: PRO buy karne ke baad custom controls unlock honge",
+                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, fontWeight = FontWeight.Medium),
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        Text(
+                            text = "Upgrade ➔",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, color = RoyalBlue),
+                            modifier = Modifier.padding(start = 4.dp)
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(14.dp))
+            }
+
+            // 1. FINANCIAL HEALTH SCORE CARD
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(18.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
-                border = androidx.compose.foundation.BorderStroke(1.5.dp, RoyalBlue.copy(alpha = 0.3f))
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)),
+                border = androidx.compose.foundation.BorderStroke(1.2.dp, Color(report.healthAudit.statusColorHex).copy(alpha = 0.5f))
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(imageVector = Icons.Default.AutoAwesome, contentDescription = null, tint = RoyalBlue, modifier = Modifier.size(20.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = "FINANCIAL HEALTH SCORE",
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.sp),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Row(verticalAlignment = Alignment.Bottom) {
+                                Text(
+                                    text = "${report.healthAudit.score}",
+                                    style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.ExtraBold),
+                                    color = Color(report.healthAudit.statusColorHex)
+                                )
+                                Text(
+                                    text = " / 100",
+                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(bottom = 6.dp)
+                                )
+                            }
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = Color(report.healthAudit.statusColorHex).copy(alpha = 0.15f)
+                        ) {
+                            Text(
+                                text = report.healthAudit.grade,
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                color = Color(report.healthAudit.statusColorHex),
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    LinearProgressIndicator(
+                        progress = { report.healthAudit.score / 100f },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(8.dp)
+                            .clip(RoundedCornerShape(4.dp)),
+                        color = Color(report.healthAudit.statusColorHex),
+                        trackColor = MaterialTheme.colorScheme.surface
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
                         Text(
-                            text = "Aaj Ki AI Strategy (${baseReport.todayDate})",
-                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                            color = RoyalBlue
+                            text = "Savings Efficiency: ${report.savingsRatePercent}%",
+                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold)
+                        )
+                        Text(
+                            text = "Emergency Runway: ~${String.format(Locale.getDefault(), "%.1f", report.healthAudit.emergencyRunwayMonths)} mo",
+                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold)
                         )
                     }
+
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = baseReport.dailyHeadline,
-                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = baseReport.dailyActionTip,
+                        text = report.executiveBrief,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -158,7 +266,103 @@ fun AiMoneyGrowthSheet(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // 2. Interactive Calculator: "Aap Har Mahine Kitna Bachana / Lagana Chahte Hain?"
+            // 2. 50 / 30 / 20 FRAMEWORK AUDIT CARD
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "⚖️ 50 / 30 / 20 Budget Rule Audit",
+                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = if (report.ruleFiftyThirtyTwenty.isBalanced) MoneyGreen.copy(alpha = 0.15f) else BrandOrange.copy(alpha = 0.15f)
+                        ) {
+                            Text(
+                                text = if (report.ruleFiftyThirtyTwenty.isBalanced) "BALANCED ✅" else "OPTIMIZE ⚡",
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 9.sp),
+                                color = if (report.ruleFiftyThirtyTwenty.isBalanced) MoneyGreen else BrandOrange,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        BudgetPillar(label = "Needs (50%)", current = "${report.ruleFiftyThirtyTwenty.needsPercent}%", color = RoyalBlue, modifier = Modifier.weight(1f))
+                        BudgetPillar(label = "Wants (30%)", current = "${report.ruleFiftyThirtyTwenty.wantsPercent}%", color = BrandOrange, modifier = Modifier.weight(1f))
+                        BudgetPillar(label = "Investments (20%)", current = "${report.ruleFiftyThirtyTwenty.investmentsPercent}%", color = MoneyGreen, modifier = Modifier.weight(1f))
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = report.ruleFiftyThirtyTwenty.suggestion,
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // 3. RISK PROFILE SELECTOR
+            Text(
+                text = "⚡ Select Investment Risk Profile",
+                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                RiskProfilePill(
+                    title = "Conservative",
+                    cagr = "8.5% p.a.",
+                    selected = selectedRiskProfile == "CONSERVATIVE",
+                    onClick = {
+                        if (!isPro) onUpgradeClicked() else selectedRiskProfile = "CONSERVATIVE"
+                    },
+                    modifier = Modifier.weight(1f),
+                    activeColor = RoyalBlue
+                )
+                RiskProfilePill(
+                    title = "Moderate (Best)",
+                    cagr = "11.5% p.a.",
+                    selected = selectedRiskProfile == "MODERATE",
+                    onClick = {
+                        if (!isPro) onUpgradeClicked() else selectedRiskProfile = "MODERATE"
+                    },
+                    modifier = Modifier.weight(1f),
+                    activeColor = MoneyGreen
+                )
+                RiskProfilePill(
+                    title = "Aggressive",
+                    cagr = "13.5% p.a.",
+                    selected = selectedRiskProfile == "AGGRESSIVE",
+                    onClick = {
+                        if (!isPro) onUpgradeClicked() else selectedRiskProfile = "AGGRESSIVE"
+                    },
+                    modifier = Modifier.weight(1f),
+                    activeColor = PurpleAccent
+                )
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // 4. INTERACTIVE WEALTH SIMULATOR
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(18.dp),
@@ -166,13 +370,51 @@ fun AiMoneyGrowthSheet(
                 border = androidx.compose.foundation.BorderStroke(1.dp, RoyalBlue.copy(alpha = 0.25f))
             ) {
                 Column(modifier = Modifier.padding(18.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "🎯 Monthly SIP & Wealth Simulator",
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = RoyalBlue
+                            )
+                            if (!isPro) {
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = Color(0xFF1D4ED8).copy(alpha = 0.15f)
+                                ) {
+                                    Text(
+                                        text = "PRO",
+                                        color = Color(0xFF1D4ED8),
+                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, fontWeight = FontWeight.Bold),
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "Inflation (6%)",
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Switch(
+                                checked = if (isPro) adjustForInflation else false,
+                                onCheckedChange = {
+                                    if (!isPro) onUpgradeClicked() else adjustForInflation = it
+                                },
+                                modifier = Modifier.height(28.dp)
+                            )
+                        }
+                    }
+
                     Text(
-                        text = "🎯 Monthly Investment & Wealth Simulator",
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = RoyalBlue
-                    )
-                    Text(
-                        text = "Amount chunein aur dekhein paisa kabb takk aur kitna grow karega:",
+                        text = if (adjustForInflation) "Real Purchasing Power dikha raha hai (6% Inflation factored in):" else "Nominal Future Compounded Corpus at ${(currentAnnualRate * 100).roundToInt()}% CAGR:",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -185,7 +427,7 @@ fun AiMoneyGrowthSheet(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Monthly SIP / Savings:",
+                            text = "Monthly Contribution:",
                             style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium)
                         )
                         Text(
@@ -194,13 +436,19 @@ fun AiMoneyGrowthSheet(
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
 
                     Slider(
                         value = customMonthlyAmount.toFloat(),
-                        onValueChange = { customMonthlyAmount = (it / 500).roundToInt() * 500.0 },
-                        valueRange = 500f..30000f,
-                        steps = 58,
+                        onValueChange = {
+                            if (!isPro) {
+                                onUpgradeClicked()
+                            } else {
+                                customMonthlyAmount = (it / 500).roundToInt() * 500.0
+                            }
+                        },
+                        valueRange = 500f..40000f,
+                        steps = 78,
                         colors = SliderDefaults.colors(thumbColor = RoyalBlue, activeTrackColor = RoyalBlue)
                     )
 
@@ -208,9 +456,11 @@ fun AiMoneyGrowthSheet(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        listOf(1000.0, 2500.0, 5000.0, 10000.0).forEach { amt ->
+                        listOf(1500.0, 3000.0, 5000.0, 10000.0).forEach { amt ->
                             SuggestionChip(
-                                onClick = { customMonthlyAmount = amt },
+                                onClick = {
+                                    if (!isPro) onUpgradeClicked() else customMonthlyAmount = amt
+                                },
                                 label = { Text("₹${amt.toInt()}", fontSize = 11.sp, fontWeight = if (customMonthlyAmount == amt) FontWeight.Bold else FontWeight.Normal) },
                                 modifier = Modifier.weight(1f)
                             )
@@ -219,34 +469,34 @@ fun AiMoneyGrowthSheet(
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
-            // 3. SECTION: "📈 Kitna Grow Hoga & Kabb Takk?"
+            // 5. TIMELINE MILESTONES
             SectionHeader(
                 title = "📈 Kitna Grow Hoga & Kabb Takk?",
-                subtitle = "12% Expected CAGR Compounding Timeline"
+                subtitle = if (adjustForInflation) "Real purchasing power after 6% inflation" else "${(currentAnnualRate * 100).roundToInt()}% Expected Blended CAGR Timeline"
             )
 
             Spacer(modifier = Modifier.height(12.dp))
 
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 dynamicTimeline.forEach { milestone ->
-                    MilestoneCard(milestone = milestone)
+                    MilestoneCard(milestone = milestone, adjustForInflation = adjustForInflation)
                 }
             }
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // 4. SECTION: "🚀 Kaha Lagao? (Asset Allocation)"
+            // 6. ASSET ALLOCATION
             SectionHeader(
-                title = "🚀 Kaha Lagao? (Smart Allocation)",
-                subtitle = "Har ₹100 ko sahi jagah baatne ka scientific formula"
+                title = "🚀 Kaha Lagao? (Asset Allocation - $selectedRiskProfile)",
+                subtitle = "Scientific diversification for optimal risk-adjusted returns"
             )
 
             Spacer(modifier = Modifier.height(12.dp))
 
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                baseReport.recommendedAllocations.forEach { alloc ->
+                currentAllocations.forEach { alloc ->
                     val allocatedForCustom = (customMonthlyAmount * (alloc.percentage / 100.0)).roundToInt().toDouble()
                     AllocationCard(alloc = alloc, customAmount = allocatedForCustom)
                 }
@@ -254,21 +504,172 @@ fun AiMoneyGrowthSheet(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // 5. SECTION: "🛑 Kaha Se Bachao? (Identified Leaks)"
+            // 7. TAX OPTIMIZATION STRATEGIES
             SectionHeader(
-                title = "🛑 Kaha Se Bachao? (Money Leaks)",
-                subtitle = "In jagahon se roz aur mahine paise bacha kar invest karein"
+                title = "🛡️ Tax Saving & Optimization Strategies",
+                subtitle = "Government approved wealth shields to legally save taxes"
             )
 
             Spacer(modifier = Modifier.height(12.dp))
 
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                baseReport.moneyLeaks.forEach { leak ->
+                report.taxStrategies.forEach { tax ->
+                    TaxCard(tax = tax)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // 8. MONEY LEAKS (KAHA BACHAO)
+            SectionHeader(
+                title = "🛑 Kaha Se Bachao? (Identified Leaks)",
+                subtitle = "Prune non-essential spends and redirect into wealth creation"
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                report.moneyLeaks.forEach { leak ->
                     MoneyLeakCard(leak = leak)
                 }
             }
 
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // Pro Membership Activation Card / Status
+            if (!isPro) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = RoyalBlue.copy(alpha = 0.08f)),
+                    border = androidx.compose.foundation.BorderStroke(1.2.dp, RoyalBlue.copy(alpha = 0.35f))
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = RoyalBlue.copy(alpha = 0.15f)
+                        ) {
+                            Text(
+                                text = "POCKETHOME PRO (₹15/MONTH)",
+                                color = RoyalBlue,
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Unlock Interactive Wealth Planner & Custom Portfolio 🚀",
+                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                            textAlign = TextAlign.Center,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "PRO plan activate karne ke baad sabhi custom SIP sliders, inflation adjusters aur dynamic leak alerts unlock honge.",
+                            style = MaterialTheme.typography.bodySmall,
+                            textAlign = TextAlign.Center,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(14.dp))
+                        Button(
+                            onClick = onUpgradeClicked,
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue),
+                            modifier = Modifier.fillMaxWidth().height(44.dp)
+                        ) {
+                            Text("Upgrade to PRO (₹15/mo) Now", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold))
+                        }
+                    }
+                }
+            } else {
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0xFF10B981).copy(alpha = 0.12f),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.35f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(imageVector = Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(24.dp))
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = "PRO Active Member 🎉",
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, color = Color(0xFF047857))
+                            )
+                            Text(
+                                text = "Aapke paas full institutional wealth advisory aur interactive simulator ka access hai.",
+                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(36.dp))
+        }
+    }
+}
+
+@Composable
+private fun BudgetPillar(label: String, current: String, color: Color, modifier: Modifier = Modifier) {
+    Surface(
+        shape = RoundedCornerShape(10.dp),
+        color = color.copy(alpha = 0.1f),
+        modifier = modifier
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(text = label, style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(text = current, style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold), color = color)
+        }
+    }
+}
+
+@Composable
+private fun RiskProfilePill(
+    title: String,
+    cagr: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    activeColor: Color = RoyalBlue
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (selected) activeColor else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+            .border(1.dp, if (selected) activeColor else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(vertical = 10.dp, horizontal = 6.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                    fontSize = 11.sp,
+                    color = if (selected) Color.White else MaterialTheme.colorScheme.onSurface
+                ),
+                maxLines = 1
+            )
+            Text(
+                text = cagr,
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (selected) Color.White.copy(alpha = 0.9f) else activeColor
+                )
+            )
         }
     }
 }
@@ -290,7 +691,9 @@ private fun SectionHeader(title: String, subtitle: String) {
 }
 
 @Composable
-private fun MilestoneCard(milestone: GrowthMilestone) {
+private fun MilestoneCard(milestone: GrowthMilestone, adjustForInflation: Boolean) {
+    val displayValue = if (adjustForInflation) milestone.realPurchasingPower else milestone.projectedValue
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -344,12 +747,12 @@ private fun MilestoneCard(milestone: GrowthMilestone) {
 
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
-                        text = "Total Projected Wealth 🚀",
+                        text = if (adjustForInflation) "Real Wealth (Inflation Adj.)" else "Total Projected Wealth 🚀",
                         style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                         color = MoneyGreen
                     )
                     Text(
-                        text = DashboardViewModel.formatCurrency(milestone.projectedValue),
+                        text = DashboardViewModel.formatCurrency(displayValue),
                         style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold, color = MoneyGreen)
                     )
                 }
@@ -367,7 +770,7 @@ private fun MilestoneCard(milestone: GrowthMilestone) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Munafa / Growth: +${DashboardViewModel.formatCurrency(milestone.totalProfit)}",
+                    text = "Gain: +${DashboardViewModel.formatCurrency(displayValue - milestone.totalInvested)}",
                     style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
                     color = MoneyGreen
                 )
@@ -399,7 +802,7 @@ private fun AllocationCard(alloc: AssetAllocationItem, customAmount: Double) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         modifier = Modifier
-                            .size(32.dp)
+                            .size(34.dp)
                             .clip(CircleShape)
                             .background(RoyalBlue.copy(alpha = 0.12f)),
                         contentAlignment = Alignment.Center
@@ -435,25 +838,71 @@ private fun AllocationCard(alloc: AssetAllocationItem, customAmount: Double) {
 
             Spacer(modifier = Modifier.height(8.dp))
 
+            Text(
+                text = "CAGR: ${alloc.expectedReturnRate} • ${alloc.riskLevel}",
+                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                color = MoneyGreen
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Text(
+                text = "Recommended Instruments: ${alloc.recommendedWhere}",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.outline
+            )
+        }
+    }
+}
+
+@Composable
+private fun TaxCard(tax: TaxStrategyItem) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "CAGR: ${alloc.expectedReturnRate} • ${alloc.riskLevel}",
-                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-                    color = MoneyGreen
+                    text = tax.title,
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface
                 )
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = RoyalBlue.copy(alpha = 0.12f)
+                ) {
+                    Text(
+                        text = "Sec ${tax.section}",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, color = RoyalBlue),
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
             }
 
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(6.dp))
 
             Text(
-                text = "Kaha Lagayein: ${alloc.recommendedWhere}",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.outline
+                text = tax.recommendation,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(text = "Limit: ${tax.maxLimit}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+                Text(text = tax.impact, style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = MoneyGreen)
+            }
         }
     }
 }
@@ -483,7 +932,7 @@ private fun MoneyLeakCard(leak: MoneyLeakTip) {
                     color = BrandOrange.copy(alpha = 0.2f)
                 ) {
                     Text(
-                        text = "Bachao: ₹${leak.potentialMonthlySavings.toInt()}/mo",
+                        text = "Save: ₹${leak.potentialMonthlySavings.toInt()}/mo",
                         style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                         color = BrandOrange,
                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)

@@ -1,6 +1,8 @@
 package com.example.ui
 
 import android.Manifest
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -76,6 +78,32 @@ fun DashboardScreen(
             scope.launch {
                 snackbarHostState.showSnackbar("SMS permission not granted. You can still add expenses manually.")
             }
+        }
+    }
+
+    // Automatic SMS Permission prompt and real-time initial sync without manual button click
+    LaunchedEffect(Unit) {
+        val hasRead = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED
+        val hasReceive = ContextCompat.checkSelfPermission(context, Manifest.permission.RECEIVE_SMS) == PackageManager.PERMISSION_GRANTED
+
+        if (hasRead || hasReceive) {
+            viewModel.updatePermissions(hasSms = true)
+            // Auto sync in background silently on launch
+            viewModel.scanInboxSmsTransactions(context) { count ->
+                if (count > 0) {
+                    scope.launch {
+                        snackbarHostState.showSnackbar("⚡ Real-time sync: $count SMS transactions updated!")
+                    }
+                }
+            }
+        } else {
+            // Automatically prompt the user for permission so transaction SMS auto-syncs seamlessly
+            permissionsLauncher.launch(
+                arrayOf(
+                    Manifest.permission.READ_SMS,
+                    Manifest.permission.RECEIVE_SMS
+                )
+            )
         }
     }
 
@@ -383,10 +411,15 @@ fun DashboardScreen(
 
     if (showAiGrowthSheet) {
         AiMoneyGrowthSheet(
+            isPro = uiState.isProUser,
             monthlyIncome = uiState.currentMonthIncome,
             monthlyExpenses = uiState.currentMonthExpenses,
             categorySpends = uiState.categoryBreakdown,
-            onDismiss = { showAiGrowthSheet = false }
+            onDismiss = { showAiGrowthSheet = false },
+            onUpgradeClicked = {
+                showAiGrowthSheet = false
+                showProPlanSheet = true
+            }
         )
     }
 

@@ -26,6 +26,16 @@ class SmsReceiver : BroadcastReceiver() {
                 if (tx != null) {
                     Log.d("SmsReceiver", "Auto-detected transaction: ${tx.title} of ₹${tx.amount}")
                     repository.saveTransaction(tx)
+                    
+                    try {
+                        android.os.Handler(android.os.Looper.getMainLooper()).post {
+                            android.widget.Toast.makeText(
+                                context,
+                                "⚡ Pockethome Auto-Sync: ₹${tx.amount.toInt()} (${tx.title}) added!",
+                                android.widget.Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    } catch (_: Exception) {}
                 }
             }
         } catch (e: Exception) {
