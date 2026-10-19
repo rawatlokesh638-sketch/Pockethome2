@@ -1142,7 +1142,7 @@ private fun AiMoneyGrowthBannerCard(
             Spacer(modifier = Modifier.height(14.dp))
 
             Button(
-                onClick = onOpenAdvisor,
+                onClick = { if (isPro) onOpenAdvisor() else onOpenProSheet() },
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = if (isPro) MoneyGreen else RoyalBlue),
                 modifier = Modifier

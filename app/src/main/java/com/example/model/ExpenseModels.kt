@@ -88,6 +88,13 @@ data class ProRequest(
     val status: String = "PENDING" // PENDING, APPROVED, REJECTED
 )
 
+data class AiChatMessage(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val sender: String = "USER", // "USER" or "AI"
+    val text: String = "",
+    val timestamp: Long = System.currentTimeMillis()
+)
+
 data class ExpenseCategoryInfo(
     val id: String,
     val name: String,

@@ -163,11 +163,10 @@ fun DashboardScreen(
                             .fillMaxSize()
                             .testTag("dashboard_root"),
                         snackbarHost = { SnackbarHost(snackbarHostState) },
-                        bottomBar = {
-                            PocketHomeBottomBar(
+                        topBar = {
+                            com.example.ui.components.DashboardTopBar(
                                 currentTab = uiState.activeTab,
-                                onTabSelected = { viewModel.selectTab(it) },
-                                onAddClicked = { showSmartAddSheet = true }
+                                onTabSelected = { viewModel.selectTab(it) }
                             )
                         }
                     ) { innerPadding ->

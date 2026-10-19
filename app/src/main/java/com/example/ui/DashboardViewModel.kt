@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.ExpenseRepository
+import com.example.BuildConfig
 import com.example.model.Bill
 import com.example.model.Budget
 import com.example.model.ExpenseCategories
@@ -143,6 +144,8 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     private val combinedDataFlow = combine(_transactions, _bills, _budget, _proStatus) { txs, bills, budget, pro ->
         DataQuad(txs, bills, budget, pro)
     }
+
+    val chatMessages = repository.chatMessages
 
     private val filterFlow = combine(
         navFlow,
@@ -605,6 +608,27 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     )
 
     private data class Quad<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
+
+    fun sendMessageToAi(text: String) {
+        val userMessage = com.example.model.AiChatMessage(sender = "USER", text = text)
+        repository.saveChatMessage(_activeUserId.value, userMessage)
+
+        viewModelScope.launch {
+            try {
+                val apiKey = BuildConfig.GEMINI_API_KEY
+                val request = com.example.service.GenerateContentRequest(
+                    contents = listOf(com.example.service.Content(parts = listOf(com.example.service.Part(text = text))))
+                )
+                val response = com.example.service.GeminiService.api.generateContent(apiKey, request)
+                val aiResponse = response.candidates.firstOrNull()?.content?.parts?.firstOrNull()?.text ?: "No response"
+                val aiMessage = com.example.model.AiChatMessage(sender = "AI", text = aiResponse)
+                repository.saveChatMessage(_activeUserId.value, aiMessage)
+            } catch (e: Exception) {
+                val aiMessage = com.example.model.AiChatMessage(sender = "AI", text = "Error: ${e.message}")
+                repository.saveChatMessage(_activeUserId.value, aiMessage)
+            }
+        }
+    }
 
     companion object {
         fun formatCurrency(amount: Double): String {

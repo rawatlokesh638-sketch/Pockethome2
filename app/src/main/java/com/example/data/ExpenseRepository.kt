@@ -38,6 +38,9 @@ class ExpenseRepository(private val context: Context) {
     )
     private val budgetAdapter = moshi.adapter(Budget::class.java)
     private val proStatusAdapter = moshi.adapter(ProStatus::class.java)
+    private val chatListAdapter = moshi.adapter<List<com.example.model.AiChatMessage>>(
+        Types.newParameterizedType(List::class.java, com.example.model.AiChatMessage::class.java)
+    )
 
     private val prefs: SharedPreferences =
         context.getSharedPreferences("pocket_home_prefs", Context.MODE_PRIVATE)
@@ -59,6 +62,8 @@ class ExpenseRepository(private val context: Context) {
     private val _localBills = MutableStateFlow<List<Bill>>(emptyList())
     private val _localBudget = MutableStateFlow(Budget())
     private val _localProStatus = MutableStateFlow(ProStatus())
+    private val _chatMessages = MutableStateFlow<List<com.example.model.AiChatMessage>>(emptyList())
+    val chatMessages = _chatMessages.asStateFlow()
 
     private var txListener: ValueEventListener? = null
     private var billListener: ValueEventListener? = null
@@ -183,11 +188,20 @@ class ExpenseRepository(private val context: Context) {
             } else {
                 _localBudget.value = Budget(id = currentMonthStr, userId = userId, month = currentMonthStr, monthlyBudget = 0.0)
             }
+
+            val chatJson = prefs.getString("ai_chat_history_$userId", null)
+            if (!chatJson.isNullOrEmpty()) {
+                val list = chatListAdapter.fromJson(chatJson) ?: emptyList()
+                _chatMessages.value = list
+            } else {
+                _chatMessages.value = emptyList()
+            }
         } catch (e: Throwable) {
             Log.e("ExpenseRepo", "Error reading local cache for user $userId", e)
             _localTransactions.value = emptyList()
             _localBills.value = emptyList()
             _localBudget.value = Budget()
+            _chatMessages.value = emptyList()
         }
     }
 
@@ -467,5 +481,24 @@ class ExpenseRepository(private val context: Context) {
         onComplete()
 
         rtdb?.reference?.child("users")?.child(userId)?.removeValue()
+    }
+
+    fun saveChatMessage(userId: String, message: com.example.model.AiChatMessage) {
+        val uid = userId.ifEmpty { getActiveUserId() }
+        val current = _chatMessages.value.toMutableList()
+        current.add(message)
+        _chatMessages.value = current
+        try {
+            val json = chatListAdapter.toJson(current)
+            prefs.edit().putString("ai_chat_history_$uid", json).apply()
+        } catch (e: Throwable) {
+            Log.e("ExpenseRepo", "Failed to persist chat message", e)
+        }
+    }
+
+    fun clearChatHistory(userId: String) {
+        val uid = userId.ifEmpty { getActiveUserId() }
+        _chatMessages.value = emptyList()
+        prefs.edit().remove("ai_chat_history_$uid").apply()
     }
 }

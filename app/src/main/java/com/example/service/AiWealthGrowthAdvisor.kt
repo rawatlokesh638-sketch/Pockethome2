@@ -1,10 +1,17 @@
 package com.example.service
 
 import com.example.ui.CategorySpend
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONArray
+import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.TimeUnit
 import kotlin.math.pow
 import kotlin.math.roundToInt
 
@@ -79,7 +86,11 @@ data class WealthAdviceReport(
     val moderateAllocations: List<AssetAllocationItem>,
     val aggressiveAllocations: List<AssetAllocationItem>,
     val taxStrategies: List<TaxStrategyItem>,
-    val growthTimeline: List<GrowthMilestone>
+    val growthTimeline: List<GrowthMilestone>,
+    val aajItnaBachaoTarget: Double = 250.0,
+    val aajKaKharchaLimit: Double = 400.0,
+    val yeKaroList: List<String> = emptyList(),
+    val yeNaKaroList: List<String> = emptyList()
 ) {
     val dailyHeadline: String get() = executiveBrief
     val recommendedAllocations: List<AssetAllocationItem> get() = moderateAllocations
@@ -399,7 +410,11 @@ object AiWealthGrowthAdvisor {
             moderateAllocations = moderateAllocations,
             aggressiveAllocations = aggressiveAllocations,
             taxStrategies = taxStrategies,
-            growthTimeline = growthTimeline
+            growthTimeline = growthTimeline,
+            aajItnaBachaoTarget = 250.0,
+            aajKaKharchaLimit = 400.0,
+            yeKaroList = listOf("Start a 5% SIP", "Cut dining out costs"),
+            yeNaKaroList = listOf("Avoid impulse shopping", "Don't ignore credit card bills")
         )
     }
 
