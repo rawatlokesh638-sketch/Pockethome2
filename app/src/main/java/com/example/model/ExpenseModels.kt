@@ -27,6 +27,7 @@ import com.example.ui.theme.*
 data class Transaction(
     val id: String = "",
     val userId: String = "",
+    val familyId: String? = null, // ADDED
     val title: String = "",
     val amount: Double = 0.0,
     val type: String = TYPE_EXPENSE, // TYPE_EXPENSE or TYPE_INCOME
@@ -38,6 +39,7 @@ data class Transaction(
     val isRecurring: Boolean = false,
     val recurringPeriod: String = "MONTHLY", // MONTHLY, WEEKLY, YEARLY
     val receiptUri: String = "",
+    val sender: String = "", // ADDED
     val timestamp: Long = System.currentTimeMillis()
 ) {
     companion object {
@@ -52,6 +54,7 @@ data class Transaction(
 data class Bill(
     val id: String = "",
     val userId: String = "",
+    val familyId: String? = null, // ADDED
     val title: String = "",
     val amount: Double = 0.0,
     val category: String = "Electricity",
@@ -65,9 +68,16 @@ data class Bill(
 data class Budget(
     val id: String = "",
     val userId: String = "",
+    val familyId: String? = null, // ADDED
     val month: String = "", // YYYY-MM
     val monthlyBudget: Double = 0.0, // Default 0
     val categoryBudgets: Map<String, Double> = emptyMap()
+)
+
+data class Family(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val name: String = "",
+    val members: List<String> = emptyList() // List of user IDs
 )
 
 data class ProStatus(

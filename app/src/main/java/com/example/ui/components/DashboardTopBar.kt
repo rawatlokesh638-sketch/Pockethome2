@@ -12,7 +12,8 @@ import com.example.ui.AppTab
 @Composable
 fun DashboardTopBar(
     currentTab: AppTab,
-    onTabSelected: (AppTab) -> Unit
+    onTabSelected: (AppTab) -> Unit,
+    onOpenAiAdvisor: () -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
 
@@ -35,6 +36,13 @@ fun DashboardTopBar(
                         }
                     )
                 }
+                DropdownMenuItem(
+                    text = { Text("AI Advisor") },
+                    onClick = {
+                        expanded = false
+                        onOpenAiAdvisor()
+                    }
+                )
             }
         }
     )

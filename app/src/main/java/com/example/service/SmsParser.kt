@@ -118,6 +118,7 @@ object SmsParser {
             notes = noteText,
             date = dateStr,
             time = timeStr,
+            sender = sender,
             timestamp = timestamp
         )
     }

@@ -13,6 +13,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -24,7 +28,6 @@ import com.example.ui.components.AddTransactionSheet
 import com.example.ui.components.AiMoneyGrowthSheet
 import com.example.ui.components.ChartTimeframe
 import com.example.ui.components.EditBudgetDialog
-import com.example.ui.components.PocketHomeBottomBar
 import com.example.ui.components.ProPlanSheet
 import com.example.ui.components.SmartAddBottomSheet
 import com.example.ui.screens.*
@@ -96,14 +99,6 @@ fun DashboardScreen(
                     }
                 }
             }
-        } else {
-            // Automatically prompt the user for permission so transaction SMS auto-syncs seamlessly
-            permissionsLauncher.launch(
-                arrayOf(
-                    Manifest.permission.READ_SMS,
-                    Manifest.permission.RECEIVE_SMS
-                )
-            )
         }
     }
 
@@ -166,8 +161,20 @@ fun DashboardScreen(
                         topBar = {
                             com.example.ui.components.DashboardTopBar(
                                 currentTab = uiState.activeTab,
-                                onTabSelected = { viewModel.selectTab(it) }
+                                onTabSelected = { viewModel.selectTab(it) },
+                                onOpenAiAdvisor = { showAiGrowthSheet = true }
                             )
+                        },
+                        floatingActionButton = {
+                            FloatingActionButton(
+                                onClick = { 
+                                    editingTransaction = null
+                                    showAddExpenseScreen = true 
+                                },
+                                containerColor = com.example.ui.theme.RoyalBlue
+                            ) {
+                                Icon(Icons.Default.Add, contentDescription = "Add")
+                            }
                         }
                     ) { innerPadding ->
                         Box(

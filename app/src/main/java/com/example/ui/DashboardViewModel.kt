@@ -427,10 +427,22 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     fun scanInboxSmsTransactions(context: android.content.Context, onComplete: (Int) -> Unit = {}) {
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             val parsedList = com.example.service.SmsParser.scanExistingInboxSms(context, _activeUserId.value)
+            val existingTransactions = _transactions.value
             var count = 0
+            
             for (tx in parsedList) {
-                repository.saveTransaction(tx)
-                count++
+                // Use sender, amount, and timestamp as a unique fingerprint for the SMS
+                val fingerprint = "${tx.sender}_${tx.amount}_${tx.timestamp}"
+                
+                val isDuplicate = existingTransactions.any { existingTx ->
+                    val existingFingerprint = "${existingTx.sender}_${existingTx.amount}_${existingTx.timestamp}"
+                    existingFingerprint == fingerprint
+                }
+                
+                if (!isDuplicate) {
+                    repository.saveTransaction(tx)
+                    count++
+                }
             }
             _scannedSmsCount.value = count
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
