@@ -206,27 +206,14 @@ fun ReportsScreen(
                                         if (!isPro) {
                                             onUpgradeClicked()
                                         } else {
-                                            val reportText = buildString {
-                                                appendLine("====================================")
-                                                appendLine("POCKETHOME EXPENSE REPORT (${uiState.activeMonthDisplay})")
-                                                appendLine("====================================")
-                                                appendLine("Total Income: ₹${uiState.currentMonthIncome.toInt()}")
-                                                appendLine("Total Expenses: ₹${uiState.currentMonthExpenses.toInt()}")
-                                                appendLine("Remaining Balance: ₹${uiState.remainingBalance.toInt()}")
-                                                appendLine("Budget: ₹${uiState.monthlyBudget.toInt()} (${uiState.budgetUsedPercent.toInt()}% used)")
-                                                appendLine("\n--- CATEGORY BREAKDOWN ---")
-                                                uiState.categoryBreakdown.forEach {
-                                                    appendLine("${it.categoryName}: ₹${it.totalAmount.toInt()} (${it.percentage.toInt()}%)")
-                                                }
-                                                appendLine("\nGenerated via Pockethome PRO ✨")
+                                            val file = com.example.util.ReportExporter.generatePdf(context, uiState.filteredTransactions)
+                                            val uri = com.example.util.ReportExporter.getFileUri(context, file)
+                                            val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                                                type = "application/pdf"
+                                                putExtra(Intent.EXTRA_STREAM, uri)
+                                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                             }
-                                            val sendIntent = Intent().apply {
-                                                action = Intent.ACTION_SEND
-                                                putExtra(Intent.EXTRA_TEXT, reportText)
-                                                putExtra(Intent.EXTRA_SUBJECT, "Pockethome Monthly Report - ${uiState.activeMonthDisplay}")
-                                                type = "text/plain"
-                                            }
-                                            context.startActivity(Intent.createChooser(sendIntent, "Export Report via"))
+                                            context.startActivity(Intent.createChooser(sendIntent, "Share Report via"))
                                         }
                                     },
                                     modifier = Modifier.weight(1f),
@@ -242,22 +229,14 @@ fun ReportsScreen(
                                         if (!isPro) {
                                             onUpgradeClicked()
                                         } else {
-                                            val csvContent = buildString {
-                                                appendLine("Category,Amount,Percentage")
-                                                uiState.categoryBreakdown.forEach {
-                                                    appendLine("${it.categoryName},${it.totalAmount},${it.percentage}%")
-                                                }
-                                                appendLine("TOTAL_EXPENSE,${uiState.currentMonthExpenses},100%")
-                                                appendLine("TOTAL_INCOME,${uiState.currentMonthIncome},-")
-                                                appendLine("BALANCE,${uiState.remainingBalance},-")
-                                            }
-                                            val sendIntent = Intent().apply {
-                                                action = Intent.ACTION_SEND
-                                                putExtra(Intent.EXTRA_TEXT, csvContent)
-                                                putExtra(Intent.EXTRA_SUBJECT, "Pockethome_Expenses_${uiState.activeMonthDisplay}.csv")
+                                            val file = com.example.util.ReportExporter.generateCsv(context, uiState.filteredTransactions)
+                                            val uri = com.example.util.ReportExporter.getFileUri(context, file)
+                                            val sendIntent = Intent(Intent.ACTION_SEND).apply {
                                                 type = "text/csv"
+                                                putExtra(Intent.EXTRA_STREAM, uri)
+                                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                             }
-                                            context.startActivity(Intent.createChooser(sendIntent, "Export Excel / CSV via"))
+                                            context.startActivity(Intent.createChooser(sendIntent, "Share Excel / CSV via"))
                                         }
                                     },
                                     modifier = Modifier.weight(1f),
