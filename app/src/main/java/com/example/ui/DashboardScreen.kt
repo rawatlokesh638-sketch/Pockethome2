@@ -308,6 +308,33 @@ fun DashboardScreen(
                                             isPro = uiState.isProUser,
                                             onBack = { viewModel.selectTab(AppTab.HOME) },
                                             onEditBudgetClicked = { showEditBudgetDialog = true },
+                                            onUpdateCategoryBudget = { cat, limit ->
+                                                viewModel.updateCategoryBudget(cat, limit)
+                                                scope.launch {
+                                                    snackbarHostState.showSnackbar("Budget set for $cat: ${DashboardViewModel.formatCurrency(limit)} 🎯")
+                                                }
+                                            },
+                                            onDeleteCategoryBudget = { cat ->
+                                                viewModel.removeCategoryBudget(cat)
+                                                scope.launch {
+                                                    snackbarHostState.showSnackbar("Category budget removed for $cat")
+                                                }
+                                            },
+                                            onUpgradeClicked = { showProPlanSheet = true }
+                                        )
+                                    }
+
+                                    AppTab.CHAT -> {
+                                        val chatMessages by viewModel.chatMessages.collectAsState(initial = emptyList())
+                                        AiChatScreen(
+                                            uiState = uiState,
+                                            chatMessages = chatMessages,
+                                            aiCredits = if (uiState.proStatus.isPro) 100 else 0,
+                                            isGenerating = false,
+                                            onSendMessage = { query ->
+                                                viewModel.sendMessageToAi(query)
+                                            },
+                                            onBack = { viewModel.selectTab(AppTab.HOME) },
                                             onUpgradeClicked = { showProPlanSheet = true }
                                         )
                                     }

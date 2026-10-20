@@ -17,6 +17,15 @@ class SecurityManager(private val context: Context) {
     }
 
     suspend fun getPin(): String? {
-        return context.dataStore.data.map { it[PIN_KEY] }.first()
+        val pin = context.dataStore.data.map { it[PIN_KEY] }.first()
+        return if (pin.isNullOrEmpty()) null else pin
+    }
+
+    suspend fun clearPin() {
+        context.dataStore.edit { it.remove(PIN_KEY) }
+    }
+
+    suspend fun hasPin(): Boolean {
+        return getPin() != null
     }
 }

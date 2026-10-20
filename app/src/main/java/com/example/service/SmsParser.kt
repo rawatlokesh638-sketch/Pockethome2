@@ -108,7 +108,12 @@ object SmsParser {
 
         val noteText = "Auto-tracked via SMS ($sender)"
 
+        val cleanSender = sender.filter { it.isLetterOrDigit() }.ifEmpty { "sms" }
+        val cleanAmount = (amount * 100).toLong()
+        val smsUniqueId = "sms_${cleanSender}_${cleanAmount}_${timestamp}"
+
         return Transaction(
+            id = smsUniqueId,
             userId = userId,
             title = merchant.take(30),
             amount = amount,

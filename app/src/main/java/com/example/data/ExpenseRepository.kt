@@ -73,15 +73,8 @@ class ExpenseRepository(private val context: Context) {
     init {
         ensureFirebaseInitialized()
         val authUser = try { Firebase.auth.currentUser } catch (e: Throwable) { null }
-        if (authUser != null && authUser.uid.isNotEmpty()) {
-            onUserChanged(authUser.uid)
-        } else {
-            // Fresh/logged-out state starts with 0
-            _localTransactions.value = emptyList()
-            _localBills.value = emptyList()
-            _localBudget.value = Budget()
-            _localProStatus.value = ProStatus()
-        }
+        val activeUid = if (authUser != null && authUser.uid.isNotEmpty()) authUser.uid else getActiveUserId()
+        onUserChanged(activeUid)
     }
 
     private fun ensureFirebaseInitialized() {
@@ -375,22 +368,35 @@ class ExpenseRepository(private val context: Context) {
 
     fun saveTransaction(transaction: Transaction, onSuccess: () -> Unit = {}, onFailure: (Exception) -> Unit = {}) {
         val userId = transaction.userId.ifEmpty { getActiveUserId() }
-        val db = rtdb ?: return
         val txId = if (transaction.id.isNotEmpty()) transaction.id else UUID.randomUUID().toString()
-        val data = transaction.copy(id = txId, userId = userId)
 
-        // Instant local update
+        // Instant local update with smart deduplication
         val currentList = _localTransactions.value.toMutableList()
-        val index = currentList.indexOfFirst { it.id == txId }
-        if (index >= 0) currentList[index] = data else currentList.add(0, data)
+        val existingIndex = currentList.indexOfFirst {
+            it.id == txId || (
+                it.sender.isNotEmpty() &&
+                transaction.sender.isNotEmpty() &&
+                it.sender.equals(transaction.sender, ignoreCase = true) &&
+                it.amount == transaction.amount &&
+                kotlin.math.abs(it.timestamp - transaction.timestamp) < 60000L
+            )
+        }
+        val finalId = if (existingIndex >= 0) currentList[existingIndex].id else txId
+        val data = transaction.copy(id = finalId, userId = userId)
+
+        if (existingIndex >= 0) {
+            currentList[existingIndex] = data
+        } else {
+            currentList.add(0, data)
+        }
         currentList.sortByDescending { it.timestamp }
         persistLocalTransactions(userId, currentList)
         onSuccess()
 
-        // Sync to RTDB
-        db.reference.child("users").child(userId).child("transactions").child(txId)
-            .setValue(data)
-            .addOnFailureListener { onFailure(it) }
+        // Sync to RTDB if available
+        rtdb?.reference?.child("users")?.child(userId)?.child("transactions")?.child(finalId)
+            ?.setValue(data)
+            ?.addOnFailureListener { onFailure(it) }
     }
 
     fun duplicateTransaction(transaction: Transaction, onSuccess: () -> Unit = {}) {
@@ -407,17 +413,17 @@ class ExpenseRepository(private val context: Context) {
     }
 
     fun deleteTransaction(userId: String, transactionId: String, onSuccess: () -> Unit = {}) {
+        val uid = userId.ifEmpty { getActiveUserId() }
         val currentList = _localTransactions.value.filterNot { it.id == transactionId }
-        persistLocalTransactions(userId, currentList)
+        persistLocalTransactions(uid, currentList)
         onSuccess()
 
-        rtdb?.reference?.child("users")?.child(userId)?.child("transactions")?.child(transactionId)
+        rtdb?.reference?.child("users")?.child(uid)?.child("transactions")?.child(transactionId)
             ?.removeValue()
     }
 
     fun saveBill(bill: Bill, onSuccess: () -> Unit = {}) {
         val userId = bill.userId.ifEmpty { getActiveUserId() }
-        val db = rtdb ?: return
         val billId = if (bill.id.isNotEmpty()) bill.id else UUID.randomUUID().toString()
         val data = bill.copy(id = billId, userId = userId)
 
@@ -428,21 +434,30 @@ class ExpenseRepository(private val context: Context) {
         persistLocalBills(userId, currentList)
         onSuccess()
 
-        db.reference.child("users").child(userId).child("bills").child(billId).setValue(data)
+        rtdb?.reference?.child("users")?.child(userId)?.child("bills")?.child(billId)?.setValue(data)
     }
 
     fun toggleBillPaid(userId: String, billId: String, isPaid: Boolean, onSuccess: () -> Unit = {}) {
+        val uid = userId.ifEmpty { getActiveUserId() }
         val todayStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-        rtdb?.reference?.child("users")?.child(userId)?.child("bills")?.child(billId)?.updateChildren(
+        val currentList = _localBills.value.toMutableList()
+        val index = currentList.indexOfFirst { it.id == billId }
+        if (index >= 0) {
+            currentList[index] = currentList[index].copy(isPaid = isPaid, paidDate = if (isPaid) todayStr else "")
+            persistLocalBills(uid, currentList)
+        }
+        onSuccess()
+        rtdb?.reference?.child("users")?.child(uid)?.child("bills")?.child(billId)?.updateChildren(
             mapOf("isPaid" to isPaid, "paidDate" to if (isPaid) todayStr else "")
-        )?.addOnSuccessListener { onSuccess() }
+        )
     }
 
     fun deleteBill(userId: String, billId: String, onSuccess: () -> Unit = {}) {
+        val uid = userId.ifEmpty { getActiveUserId() }
         val currentList = _localBills.value.filterNot { it.id == billId }
-        persistLocalBills(userId, currentList)
+        persistLocalBills(uid, currentList)
         onSuccess()
-        rtdb?.reference?.child("users")?.child(userId)?.child("bills")?.child(billId)?.removeValue()
+        rtdb?.reference?.child("users")?.child(uid)?.child("bills")?.child(billId)?.removeValue()
     }
 
     fun saveBudget(budget: Budget, onSuccess: () -> Unit = {}) {

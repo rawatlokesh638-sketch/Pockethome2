@@ -47,8 +47,8 @@ data class Transaction(
         const val TYPE_INCOME = "INCOME"
     }
 
-    fun isExpense(): Boolean = type == TYPE_EXPENSE
-    fun isIncome(): Boolean = type == TYPE_INCOME
+    fun isExpense(): Boolean = type.equals(TYPE_EXPENSE, ignoreCase = true) || type.equals("DEBIT", ignoreCase = true) || type.isBlank()
+    fun isIncome(): Boolean = type.equals(TYPE_INCOME, ignoreCase = true) || type.equals("CREDIT", ignoreCase = true)
 }
 
 data class Bill(

@@ -102,13 +102,14 @@ fun AiMoneyGrowthSheet(
                     }
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
                             Text(
                                 text = "Institutional AI Advisor",
                                 style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
                                 color = MaterialTheme.colorScheme.onSurface
                             )
-                            Spacer(modifier = Modifier.width(6.dp))
                             Surface(
                                 shape = RoundedCornerShape(6.dp),
                                 color = MoneyGreen.copy(alpha = 0.15f)
@@ -117,7 +118,9 @@ fun AiMoneyGrowthSheet(
                                     text = "PRO WEALTH",
                                     color = MoneyGreen,
                                     style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 9.sp),
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                    maxLines = 1,
+                                    softWrap = false
                                 )
                             }
                         }
@@ -375,28 +378,38 @@ fun AiMoneyGrowthSheet(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(end = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
                             Text(
                                 text = "🎯 Monthly SIP & Wealth Simulator",
                                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                                 color = RoyalBlue
                             )
                             if (!isPro) {
-                                Spacer(modifier = Modifier.width(6.dp))
                                 Surface(
                                     shape = RoundedCornerShape(4.dp),
-                                    color = Color(0xFF1D4ED8).copy(alpha = 0.15f)
+                                    color = Color(0xFF1D4ED8).copy(alpha = 0.15f),
+                                    modifier = Modifier.wrapContentSize()
                                 ) {
                                     Text(
-                                        text = "PRO",
+                                        text = "PRO ⭐ (₹15/mo)",
                                         color = Color(0xFF1D4ED8),
                                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, fontWeight = FontWeight.Bold),
-                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                        maxLines = 1,
+                                        softWrap = false
                                     )
                                 }
                             }
                         }
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.wrapContentWidth()
+                        ) {
                             Text(
                                 text = "Inflation (6%)",
                                 style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),

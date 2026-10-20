@@ -161,7 +161,10 @@ fun ReportsScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.weight(1f).padding(end = 8.dp)
+                                ) {
                                     Icon(
                                         imageVector = Icons.Default.Description,
                                         contentDescription = null,
@@ -177,13 +180,16 @@ fun ReportsScreen(
                                 }
                                 Surface(
                                     shape = RoundedCornerShape(4.dp),
-                                    color = if (isPro) Color(0xFF10B981).copy(alpha = 0.15f) else Color(0xFF1D4ED8).copy(alpha = 0.15f)
+                                    color = if (isPro) Color(0xFF10B981).copy(alpha = 0.15f) else Color(0xFF1D4ED8).copy(alpha = 0.15f),
+                                    modifier = Modifier.wrapContentSize()
                                 ) {
                                     Text(
                                         text = if (isPro) "PRO ACTIVE" else "PRO ⭐ (₹15/mo)",
                                         color = if (isPro) Color(0xFF10B981) else Color(0xFF1D4ED8),
                                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, fontWeight = FontWeight.Bold),
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                        maxLines = 1,
+                                        softWrap = false
                                     )
                                 }
                             }
@@ -270,6 +276,8 @@ fun ReportsScreen(
                         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                     ) {
                         SpendingAreaChart(
+                            transactions = uiState.filteredTransactions,
+                            totalExpenses = uiState.currentMonthExpenses,
                             modifier = Modifier.fillMaxSize().padding(16.dp)
                         )
                     }
@@ -336,10 +344,62 @@ fun ReportsScreen(
 }
 
 @Composable
-fun SpendingAreaChart(modifier: Modifier = Modifier) {
-    // Mock data for trend
-    val points = listOf(0.2f, 0.5f, 0.4f, 0.8f, 0.6f, 0.9f, 0.7f)
-    
+fun SpendingAreaChart(
+    transactions: List<com.example.model.Transaction>,
+    totalExpenses: Double,
+    modifier: Modifier = Modifier
+) {
+    val expenseTxns = transactions.filter { it.isExpense() }
+
+    if (totalExpenses <= 0.0 || expenseTxns.isEmpty()) {
+        Box(
+            modifier = modifier,
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.TrendingUp,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                    modifier = Modifier.size(36.dp)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "No spending data for this period",
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Expenses record hote hi spending trend chart generate hoga.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                )
+            }
+        }
+        return
+    }
+
+    // Compute actual 7 data points from transactions grouped by timestamp or date
+    val sorted = expenseTxns.sortedBy { it.timestamp }
+    val chunkCount = 7
+    val minTime = sorted.first().timestamp
+    val maxTime = sorted.last().timestamp
+    val timeSpan = (maxTime - minTime).coerceAtLeast(1L)
+    val bucketAmounts = DoubleArray(chunkCount) { 0.0 }
+
+    for (tx in sorted) {
+        val fraction = ((tx.timestamp - minTime).toDouble() / timeSpan).coerceIn(0.0, 0.999)
+        val bucket = (fraction * chunkCount).toInt().coerceIn(0, chunkCount - 1)
+        bucketAmounts[bucket] += tx.amount
+    }
+
+    val maxVal = bucketAmounts.maxOrNull()?.coerceAtLeast(1.0) ?: 1.0
+    val points = bucketAmounts.map { (it / maxVal).toFloat().coerceIn(0.05f, 1.0f) }
+
     Canvas(modifier = modifier) {
         val width = size.width
         val height = size.height
@@ -347,10 +407,10 @@ fun SpendingAreaChart(modifier: Modifier = Modifier) {
 
         val path = Path()
         val fillPath = Path()
-        
+
         points.forEachIndexed { i, p ->
             val x = i * step
-            val y = height - (p * height)
+            val y = height - (p * (height - 30.dp.toPx())) - 10.dp.toPx()
             if (i == 0) {
                 path.moveTo(x, y)
                 fillPath.moveTo(x, height)
@@ -367,7 +427,7 @@ fun SpendingAreaChart(modifier: Modifier = Modifier) {
         drawPath(
             path = fillPath,
             brush = Brush.verticalGradient(
-                colors = listOf(RoyalBlue.copy(alpha = 0.3f), Color.Transparent)
+                colors = listOf(RoyalBlue.copy(alpha = 0.35f), Color.Transparent)
             )
         )
 
@@ -381,7 +441,7 @@ fun SpendingAreaChart(modifier: Modifier = Modifier) {
         // Draw points
         points.forEachIndexed { i, p ->
             val x = i * step
-            val y = height - (p * height)
+            val y = height - (p * (height - 30.dp.toPx())) - 10.dp.toPx()
             drawCircle(color = RoyalBlue, radius = 4.dp.toPx(), center = Offset(x, y))
             drawCircle(color = Color.White, radius = 2.dp.toPx(), center = Offset(x, y))
         }
@@ -405,24 +465,51 @@ private fun ReportPill(label: String, selected: Boolean, onClick: () -> Unit, mo
 
 @Composable
 private fun DonutChart(breakdown: List<com.example.ui.CategorySpend>, totalExpenses: Double) {
+    if (totalExpenses <= 0.0 || breakdown.isEmpty()) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 16.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(
+                    modifier = Modifier
+                        .size(140.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(DashboardViewModel.formatCurrency(0.0), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text("No spending", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = "No spending data for this period",
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        return
+    }
+
     Box(modifier = Modifier.size(200.dp), contentAlignment = Alignment.Center) {
         Canvas(modifier = Modifier.fillMaxSize()) {
             val strokeWidth = 30.dp.toPx()
-            if (breakdown.isEmpty()) {
-                drawCircle(Color.LightGray.copy(alpha = 0.2f), style = Stroke(strokeWidth))
-            } else {
-                var start = -90f
-                breakdown.forEach { item ->
-                    val sweep = (item.percentage / 100f) * 360f
-                    drawArc(
-                        color = ExpenseCategories.getCategoryInfo(item.categoryName).color,
-                        startAngle = start,
-                        sweepAngle = sweep - 1f,
-                        useCenter = false,
-                        style = Stroke(strokeWidth, cap = StrokeCap.Round)
-                    )
-                    start += sweep
-                }
+            var start = -90f
+            breakdown.forEach { item ->
+                val sweep = (item.percentage / 100f) * 360f
+                drawArc(
+                    color = ExpenseCategories.getCategoryInfo(item.categoryName).color,
+                    startAngle = start,
+                    sweepAngle = sweep - 1f,
+                    useCenter = false,
+                    style = Stroke(strokeWidth, cap = StrokeCap.Round)
+                )
+                start += sweep
             }
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {

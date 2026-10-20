@@ -37,26 +37,40 @@ enum class DateFilterOption {
 }
 
 enum class HomeTimeframe {
-    THIS_MONTH, THIS_YEAR
+    THIS_MONTH, THIS_YEAR, ALL_TIME
 }
 
 enum class ReportsTimeframe {
-    MONTHLY, YEARLY, CUSTOM
+    MONTHLY, YEARLY, ALL_TIME, CUSTOM
 }
 
 enum class AppTab {
-    HOME, TRANSACTIONS, REPORTS, BILLS, BUDGET
+    HOME, TRANSACTIONS, REPORTS, BILLS, BUDGET, CHAT
 }
 
 enum class AuthMode {
     LOGIN, SIGNUP, DASHBOARD
 }
 
+data class CategoryBudgetStatus(
+    val category: String,
+    val spent: Double,
+    val allTimeSpent: Double = 0.0,
+    val limit: Double,
+    val percentage: Float
+)
+
 data class DashboardUiState(
     val currentMonthExpenses: Double = 0.0,
     val currentMonthIncome: Double = 0.0,
+    val totalAllTimeExpenses: Double = 0.0,
+    val totalAllTimeIncome: Double = 0.0,
+    val periodExpenses: Double = 0.0,
+    val periodIncome: Double = 0.0,
     val remainingBalance: Double = 0.0,
     val monthlyBudget: Double = 0.0,
+    val categoryBudgets: Map<String, Double> = emptyMap(),
+    val categoryBudgetStatuses: List<CategoryBudgetStatus> = emptyList(),
     val budgetUsedPercent: Float = 0f,
     val todaySpending: Double = 0.0,
     val lastMonthExpenses: Double = 0.0,
@@ -124,8 +138,8 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     private val _budget = MutableStateFlow(Budget())
     private val _proStatus = MutableStateFlow(com.example.model.ProStatus())
 
-    private val currentMonthStr: String = SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(Date())
-    private val currentYearStr: String = SimpleDateFormat("yyyy", Locale.getDefault()).format(Date())
+    private fun getCurrentMonthStr(): String = SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(Date())
+    private fun getCurrentYearStr(): String = SimpleDateFormat("yyyy", Locale.getDefault()).format(Date())
     private val currentMonthDisplay: String = SimpleDateFormat("MMMM yyyy", Locale.getDefault()).format(Date())
     private val currentDateDisplay: String = SimpleDateFormat("EEE, d MMM yyyy", Locale.getDefault()).format(Date())
 
@@ -330,10 +344,39 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun updateMonthlyBudget(newBudget: Double) {
-        val b = Budget(
+        val current = _budget.value
+        val b = current.copy(
             userId = _activeUserId.value,
-            month = currentMonthStr,
+            month = getCurrentMonthStr(),
             monthlyBudget = newBudget
+        )
+        repository.saveBudget(b)
+    }
+
+    fun updateCategoryBudget(category: String, limit: Double) {
+        val current = _budget.value
+        val updatedMap = current.categoryBudgets.toMutableMap()
+        if (limit > 0) {
+            updatedMap[category] = limit
+        } else {
+            updatedMap.remove(category)
+        }
+        val b = current.copy(
+            userId = _activeUserId.value,
+            month = getCurrentMonthStr(),
+            categoryBudgets = updatedMap
+        )
+        repository.saveBudget(b)
+    }
+
+    fun removeCategoryBudget(category: String) {
+        val current = _budget.value
+        val updatedMap = current.categoryBudgets.toMutableMap()
+        updatedMap.remove(category)
+        val b = current.copy(
+            userId = _activeUserId.value,
+            month = getCurrentMonthStr(),
+            categoryBudgets = updatedMap
         )
         repository.saveBudget(b)
     }
@@ -384,7 +427,10 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                     val c = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -i) }
                     val dStr = sdfDate.format(c.time)
                     val lbl = dayFormat.format(c.time)
-                    val sum = all.filter { it.date == dStr }.sumOf { it.amount }
+                    val sum = all.filter {
+                        val effDate = if (it.date.isNotBlank()) it.date.take(10) else sdfDate.format(Date(it.timestamp))
+                        effDate == dStr
+                    }.sumOf { it.amount }
                     days.add(ChartBarData(label = lbl, amount = sum, isHighlighted = (dStr == todayStr)))
                 }
                 days
@@ -398,7 +444,10 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                     val cEnd = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -endDayOffset) }
                     val sDate = sdfDate.format(cStart.time)
                     val eDate = sdfDate.format(cEnd.time)
-                    val sum = all.filter { it.date in sDate..eDate }.sumOf { it.amount }
+                    val sum = all.filter {
+                        val effDate = if (it.date.isNotBlank()) it.date.take(10) else sdfDate.format(Date(it.timestamp))
+                        effDate in sDate..eDate
+                    }.sumOf { it.amount }
                     weeks.add(ChartBarData(label = "Wk $w", amount = sum, isHighlighted = (w == 1)))
                 }
                 weeks
@@ -412,7 +461,10 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                     val c = Calendar.getInstance().apply { add(Calendar.MONTH, -m) }
                     val mKey = SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(c.time)
                     val mLbl = monthLabelFormat.format(c.time)
-                    val sum = all.filter { it.date.startsWith(mKey) }.sumOf { it.amount }
+                    val sum = all.filter {
+                        val effMonth = if (it.date.length >= 7) it.date.take(7) else SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(Date(it.timestamp))
+                        effMonth == mKey
+                    }.sumOf { it.amount }
                     months.add(ChartBarData(label = mLbl, amount = sum, isHighlighted = (mKey == currentMonthKey)))
                 }
                 months
@@ -428,18 +480,29 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             val parsedList = com.example.service.SmsParser.scanExistingInboxSms(context, _activeUserId.value)
             val existingTransactions = _transactions.value
+            val seenFingerprints = mutableSetOf<String>()
+            existingTransactions.forEach { existingTx ->
+                seenFingerprints.add("${existingTx.sender}_${existingTx.amount}_${existingTx.timestamp}")
+                seenFingerprints.add("${existingTx.title}_${existingTx.amount}_${existingTx.date}_${existingTx.time}")
+            }
+
             var count = 0
-            
             for (tx in parsedList) {
-                // Use sender, amount, and timestamp as a unique fingerprint for the SMS
-                val fingerprint = "${tx.sender}_${tx.amount}_${tx.timestamp}"
-                
-                val isDuplicate = existingTransactions.any { existingTx ->
-                    val existingFingerprint = "${existingTx.sender}_${existingTx.amount}_${existingTx.timestamp}"
-                    existingFingerprint == fingerprint
-                }
-                
+                val fp1 = "${tx.sender}_${tx.amount}_${tx.timestamp}"
+                val fp2 = "${tx.title}_${tx.amount}_${tx.date}_${tx.time}"
+
+                val isDuplicate = seenFingerprints.contains(fp1) || 
+                    seenFingerprints.contains(fp2) || 
+                    existingTransactions.any { existingTx ->
+                        existingTx.amount == tx.amount && 
+                        existingTx.sender.isNotEmpty() && 
+                        existingTx.sender.equals(tx.sender, ignoreCase = true) && 
+                        kotlin.math.abs(existingTx.timestamp - tx.timestamp) < 60000L
+                    }
+
                 if (!isDuplicate) {
+                    seenFingerprints.add(fp1)
+                    seenFingerprints.add(fp2)
                     repository.saveTransaction(tx)
                     count++
                 }
@@ -452,6 +515,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun clearAllData() {
+        val currentMonthStr = getCurrentMonthStr()
         repository.clearAllData(_activeUserId.value) {
             _transactions.value = emptyList()
             _bills.value = emptyList()
@@ -466,6 +530,8 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         proStatus: com.example.model.ProStatus,
         filters: FilterState
     ): DashboardUiState {
+        val currentMonthStr = getCurrentMonthStr()
+        val currentYearStr = getCurrentYearStr()
         val todayStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
 
         val lastMonthCal = Calendar.getInstance().apply { add(Calendar.MONTH, -1) }
@@ -476,31 +542,36 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         var expensesLast = 0.0
         var incomeLast = 0.0
         var todaySpend = 0.0
+        var allTimeExpenses = 0.0
+        var allTimeIncome = 0.0
         val categoryMap = mutableMapOf<String, Double>()
         val categoryCountMap = mutableMapOf<String, Int>()
 
         for (tx in allTransactions) {
-            val isCurrentPeriod = if (filters.homeTimeframe == HomeTimeframe.THIS_MONTH) {
-                tx.date.startsWith(currentMonthStr)
-            } else {
-                tx.date.startsWith(currentYearStr)
+            val txEffectiveDate = if (tx.date.isNotBlank()) tx.date else SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(tx.timestamp))
+            val isCurrentPeriod = when (filters.homeTimeframe) {
+                HomeTimeframe.THIS_MONTH -> txEffectiveDate.startsWith(currentMonthStr)
+                HomeTimeframe.THIS_YEAR -> txEffectiveDate.startsWith(currentYearStr)
+                HomeTimeframe.ALL_TIME -> true
             }
 
-            val isLastMonth = tx.date.startsWith(lastMonthStr)
+            val isLastMonth = txEffectiveDate.startsWith(lastMonthStr)
 
             if (tx.isExpense()) {
+                allTimeExpenses += tx.amount
                 if (isCurrentPeriod) {
                     expensesCurrent += tx.amount
                     categoryMap[tx.category] = (categoryMap[tx.category] ?: 0.0) + tx.amount
                     categoryCountMap[tx.category] = (categoryCountMap[tx.category] ?: 0) + 1
 
-                    if (tx.date == todayStr) {
+                    if (txEffectiveDate == todayStr) {
                         todaySpend += tx.amount
                     }
                 } else if (isLastMonth) {
                     expensesLast += tx.amount
                 }
             } else if (tx.isIncome()) {
+                allTimeIncome += tx.amount
                 if (isCurrentPeriod) {
                     incomeCurrent += tx.amount
                 } else if (isLastMonth) {
@@ -530,15 +601,30 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
             )
         }.sortedByDescending { it.totalAmount }
 
+        // Category budget statuses
+        val allRelevantCategories = (budget.categoryBudgets.keys + categoryMap.keys).toSet()
+        val budgetStatuses = allRelevantCategories.map { cat ->
+            val spent = categoryMap[cat] ?: 0.0
+            val limit = budget.categoryBudgets[cat] ?: 0.0
+            val pct = if (limit > 0) ((spent / limit) * 100).toFloat().coerceIn(0f, 150f) else 0f
+            CategoryBudgetStatus(
+                category = cat,
+                spent = spent,
+                limit = limit,
+                percentage = pct
+            )
+        }.sortedWith(compareByDescending<CategoryBudgetStatus> { it.limit > 0 }.thenByDescending { it.spent })
+
         // Filter and sort transactions for Expense Management
         val filtered = allTransactions.filter { tx ->
+            val effectiveDate = if (tx.date.isNotBlank()) tx.date else SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(tx.timestamp))
             val matchesCategory = filters.categoryFilter == "ALL" || tx.category.equals(filters.categoryFilter, ignoreCase = true)
             val matchesPayment = filters.paymentFilter == "ALL" || tx.paymentMethod.contains(filters.paymentFilter, ignoreCase = true)
             val matchesDate = when (filters.dateFilter) {
                 DateFilterOption.ALL -> true
-                DateFilterOption.TODAY -> tx.date == todayStr
-                DateFilterOption.THIS_MONTH -> tx.date.startsWith(currentMonthStr)
-                DateFilterOption.THIS_YEAR -> tx.date.startsWith(currentYearStr)
+                DateFilterOption.TODAY -> effectiveDate == todayStr
+                DateFilterOption.THIS_MONTH -> effectiveDate.startsWith(currentMonthStr)
+                DateFilterOption.THIS_YEAR -> effectiveDate.startsWith(currentYearStr)
             }
             val matchesQuery = if (filters.searchQuery.isBlank()) true else {
                 tx.title.contains(filters.searchQuery, ignoreCase = true) ||
@@ -564,8 +650,12 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         return DashboardUiState(
             currentMonthExpenses = expensesCurrent,
             currentMonthIncome = incomeCurrent,
+            totalAllTimeExpenses = allTimeExpenses,
+            totalAllTimeIncome = allTimeIncome,
             remainingBalance = remainingBalance,
             monthlyBudget = monthlyBudgetAmount,
+            categoryBudgets = budget.categoryBudgets,
+            categoryBudgetStatuses = budgetStatuses,
             budgetUsedPercent = budgetUsedPercent,
             todaySpending = todaySpend,
             lastMonthExpenses = expensesLast,

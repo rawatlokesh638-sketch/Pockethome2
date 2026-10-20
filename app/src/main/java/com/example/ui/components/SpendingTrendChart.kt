@@ -114,89 +114,119 @@ fun SpendingTrendChart(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // Bars Container
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(150.dp)
-                    .padding(horizontal = 4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Bottom
-            ) {
-                chartData.forEach { bar ->
-                    val fraction = (bar.amount / maxAmount).toFloat().coerceIn(0.04f, 1f)
-                    val animatedHeight by animateFloatAsState(
-                        targetValue = fraction,
-                        animationSpec = tween(durationMillis = 600),
-                        label = "barHeight_${bar.label}"
-                    )
+            val hasAnySpending = chartData.any { it.amount > 0 }
 
-                    val barColor = if (bar.isHighlighted) {
-                        EmeraldPrimary
-                    } else {
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
-                    }
-
+            if (!hasAnySpending) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(140.dp)
+                        .padding(vertical = 12.dp),
+                    contentAlignment = Alignment.Center
+                ) {
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.weight(1f)
+                        verticalArrangement = Arrangement.Center
                     ) {
-                        // Amount label above bar
-                        if (bar.amount > 0) {
-                            Text(
-                                text = formatShortAmount(bar.amount),
-                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
-                                color = if (bar.isHighlighted) EmeraldPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontWeight = if (bar.isHighlighted) FontWeight.Bold else FontWeight.Normal,
-                                textAlign = TextAlign.Center
-                            )
-                        } else {
-                            Text(
-                                text = "-",
-                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(4.dp))
-
-                        // Visual Bar
-                        Box(
-                            modifier = Modifier
-                                .fillMaxHeight(0.72f)
-                                .width(if (chartData.size > 5) 20.dp else 28.dp),
-                            contentAlignment = Alignment.BottomCenter
-                        ) {
-                            // Background track
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxHeight()
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
-                            )
-
-                            // Foreground animated bar
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxHeight(animatedHeight)
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(barColor)
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        // Label below bar
                         Text(
-                            text = bar.label,
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontSize = 11.sp,
-                                fontWeight = if (bar.isHighlighted) FontWeight.Bold else FontWeight.Medium
-                            ),
-                            color = if (bar.isHighlighted) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+                            text = "No spending data for this period",
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Expenses add karne par spending trend analysis yahan dikhega.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            } else {
+                // Bars Container
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(150.dp)
+                        .padding(horizontal = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Bottom
+                ) {
+                    chartData.forEach { bar ->
+                        val fraction = (bar.amount / maxAmount).toFloat().coerceIn(0.04f, 1f)
+                        val animatedHeight by animateFloatAsState(
+                            targetValue = fraction,
+                            animationSpec = tween(durationMillis = 600),
+                            label = "barHeight_${bar.label}"
+                        )
+
+                        val barColor = if (bar.isHighlighted) {
+                            EmeraldPrimary
+                        } else {
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                        }
+
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            // Amount label above bar
+                            if (bar.amount > 0) {
+                                Text(
+                                    text = formatShortAmount(bar.amount),
+                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                                    color = if (bar.isHighlighted) EmeraldPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontWeight = if (bar.isHighlighted) FontWeight.Bold else FontWeight.Normal,
+                                    textAlign = TextAlign.Center
+                                )
+                            } else {
+                                Text(
+                                    text = "-",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(4.dp))
+
+                            // Visual Bar
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxHeight(0.72f)
+                                    .width(if (chartData.size > 5) 20.dp else 28.dp),
+                                contentAlignment = Alignment.BottomCenter
+                            ) {
+                                // Background track
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxHeight()
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                                )
+
+                                // Foreground animated bar
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxHeight(animatedHeight)
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(barColor)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            // Label below bar
+                            Text(
+                                text = bar.label,
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontSize = 11.sp,
+                                    fontWeight = if (bar.isHighlighted) FontWeight.Bold else FontWeight.Medium
+                                ),
+                                color = if (bar.isHighlighted) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
             }

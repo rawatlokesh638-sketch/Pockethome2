@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -212,6 +213,39 @@ fun HomeScreen(
             )
         }
 
+        if (uiState.homeTimeframe == HomeTimeframe.THIS_MONTH && uiState.currentMonthExpenses == 0.0 && uiState.totalAllTimeExpenses > 0) {
+            item(key = "all_time_hint_card") {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onTimeframeChanged(HomeTimeframe.ALL_TIME) }
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "Is mahine ka kharcha ₹0 hai. Purana kharcha (${DashboardViewModel.formatCurrency(uiState.totalAllTimeExpenses)}) dekhne ke liye tap karein 👆",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            text = "View All",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            color = RoyalBlue
+                        )
+                    }
+                }
+            }
+        }
+
         // 5. Monthly Budget Overview Card with Progress Bar and Edit Budget
         item(key = "budget_overview") {
             BudgetOverviewCard(
@@ -234,11 +268,28 @@ fun HomeScreen(
 
         // 7. Spending Trend Overview Bar Chart (Daily / Weekly / Monthly)
         item(key = "spending_trend") {
-            SpendingTrendChart(
-                chartData = chartData,
-                currentTimeframe = currentChartTimeframe,
-                onTimeframeSelected = onChartTimeframeChanged
-            )
+            val hasData = chartData.any { it.amount > 0 }
+            if (hasData) {
+                SpendingTrendChart(
+                    chartData = chartData,
+                    currentTimeframe = currentChartTimeframe,
+                    onTimeframeSelected = onChartTimeframeChanged
+                )
+            } else {
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                ) {
+                    Box(modifier = Modifier.fillMaxWidth().padding(20.dp), contentAlignment = Alignment.Center) {
+                        Text(
+                            text = "No spending data for this period",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
         }
 
         // 8. Category-wise Spending Breakdown
@@ -417,25 +468,30 @@ private fun AutoTrackSmsCard(
                     )
                 }
                 Spacer(modifier = Modifier.width(10.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(end = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = "All Transactions SMS Auto-Sync",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = if (isPro) Color(0xFF10B981).copy(alpha = 0.15f) else Color(0xFF1D4ED8).copy(alpha = 0.15f),
+                        modifier = Modifier.wrapContentSize()
+                    ) {
                         Text(
-                            text = "All Transactions SMS Auto-Sync",
-                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.onSurface
+                            text = if (isPro) "PRO ACTIVE" else "PRO ⭐ (₹15/mo)",
+                            color = if (isPro) Color(0xFF10B981) else Color(0xFF1D4ED8),
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, fontWeight = FontWeight.Bold),
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            maxLines = 1,
+                            softWrap = false
                         )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Surface(
-                            shape = RoundedCornerShape(4.dp),
-                            color = if (isPro) Color(0xFF10B981).copy(alpha = 0.15f) else Color(0xFF1D4ED8).copy(alpha = 0.15f)
-                        ) {
-                            Text(
-                                text = if (isPro) "PRO ACTIVE" else "PRO ⭐ (₹15/mo)",
-                                color = if (isPro) Color(0xFF10B981) else Color(0xFF1D4ED8),
-                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, fontWeight = FontWeight.Bold),
-                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
-                            )
-                        }
                     }
                     Text(
                         text = if (isPro) "Bank, UPI, Amazon, Wallets & Cards ke sabhi messages auto-track honge!" else "Bank & UPI SMS automatic continuous tracker (Included in PRO)",
@@ -659,49 +715,36 @@ private fun TimeframePills(
             .padding(horizontal = 20.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        val isMonth = selectedTimeframe == HomeTimeframe.THIS_MONTH
-        Box(
-            modifier = Modifier
-                .clip(RoundedCornerShape(20.dp))
-                .background(if (isMonth) RoyalBlue else Color.Transparent)
-                .border(
-                    width = 1.dp,
-                    color = if (isMonth) RoyalBlue else MaterialTheme.colorScheme.outline.copy(alpha = 0.35f),
-                    shape = RoundedCornerShape(20.dp)
-                )
-                .clickable { onSelectTimeframe(HomeTimeframe.THIS_MONTH) }
-                .padding(horizontal = 20.dp, vertical = 8.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "This Month",
-                style = MaterialTheme.typography.labelMedium.copy(
-                    fontWeight = if (isMonth) FontWeight.Bold else FontWeight.Medium
-                ),
-                color = if (isMonth) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
+        val options = listOf(
+            HomeTimeframe.THIS_MONTH to "This Month",
+            HomeTimeframe.THIS_YEAR to "This Year",
+            HomeTimeframe.ALL_TIME to "All Time"
+        )
 
-        Box(
-            modifier = Modifier
-                .clip(RoundedCornerShape(20.dp))
-                .background(if (!isMonth) RoyalBlue else Color.Transparent)
-                .border(
-                    width = 1.dp,
-                    color = if (!isMonth) RoyalBlue else MaterialTheme.colorScheme.outline.copy(alpha = 0.35f),
-                    shape = RoundedCornerShape(20.dp)
+        options.forEach { (timeframe, label) ->
+            val isSelected = selectedTimeframe == timeframe
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(if (isSelected) RoyalBlue else Color.Transparent)
+                    .border(
+                        width = 1.dp,
+                        color = if (isSelected) RoyalBlue else MaterialTheme.colorScheme.outline.copy(alpha = 0.35f),
+                        shape = RoundedCornerShape(20.dp)
+                    )
+                    .clickable { onSelectTimeframe(timeframe) }
+                    .padding(vertical = 8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelMedium.copy(
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                    ),
+                    color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                .clickable { onSelectTimeframe(HomeTimeframe.THIS_YEAR) }
-                .padding(horizontal = 20.dp, vertical = 8.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "This Year",
-                style = MaterialTheme.typography.labelMedium.copy(
-                    fontWeight = if (!isMonth) FontWeight.Bold else FontWeight.Medium
-                ),
-                color = if (!isMonth) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            }
         }
     }
 }
@@ -929,25 +972,30 @@ private fun AiMoneyGrowthBannerCard(
                         )
                     }
                     Spacer(modifier = Modifier.width(10.dp))
-                    Column {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(end = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = "AI Money Growth Advisor",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = if (isPro) Color(0xFF10B981).copy(alpha = 0.15f) else Color(0xFF1D4ED8).copy(alpha = 0.15f),
+                            modifier = Modifier.wrapContentSize()
+                        ) {
                             Text(
-                                text = "AI Money Growth Advisor",
-                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.onSurface
+                                text = if (isPro) "PRO ACTIVE ⭐" else "PRO ⭐ (₹15/mo)",
+                                color = if (isPro) Color(0xFF10B981) else Color(0xFF1D4ED8),
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 9.sp),
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                maxLines = 1,
+                                softWrap = false
                             )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Surface(
-                                shape = RoundedCornerShape(6.dp),
-                                color = if (isPro) Color(0xFF10B981).copy(alpha = 0.15f) else Color(0xFF1D4ED8).copy(alpha = 0.15f)
-                            ) {
-                                Text(
-                                    text = if (isPro) "PRO ACTIVE ⭐" else "PRO ⭐ (₹15/mo)",
-                                    color = if (isPro) Color(0xFF10B981) else Color(0xFF1D4ED8),
-                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 9.sp),
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                )
-                            }
                         }
                         Text(
                             text = "Daily Wealth Strategy • Kaha Lagao, Kaha Bachao",

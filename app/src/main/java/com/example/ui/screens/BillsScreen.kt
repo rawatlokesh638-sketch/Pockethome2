@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -263,25 +264,30 @@ fun BillsScreen(
                                     )
                                 }
                                 Spacer(modifier = Modifier.width(12.dp))
-                                Column {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                Column(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .padding(end = 8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Text(
+                                        text = "Automatic Bill Reminders",
+                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Surface(
+                                        shape = RoundedCornerShape(4.dp),
+                                        color = if (isPro) Color(0xFF10B981).copy(alpha = 0.15f) else Color(0xFFF97316).copy(alpha = 0.15f),
+                                        modifier = Modifier.wrapContentSize()
+                                    ) {
                                         Text(
-                                            text = "Automatic Bill Reminders",
-                                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                                            color = MaterialTheme.colorScheme.onSurface
+                                            text = if (isPro) "PRO ACTIVE" else "PRO ⭐ (₹15/mo)",
+                                            color = if (isPro) Color(0xFF10B981) else Color(0xFFF97316),
+                                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, fontWeight = FontWeight.Bold),
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                            maxLines = 1,
+                                            softWrap = false
                                         )
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Surface(
-                                            shape = RoundedCornerShape(4.dp),
-                                            color = if (isPro) Color(0xFF10B981).copy(alpha = 0.15f) else Color(0xFFF97316).copy(alpha = 0.15f)
-                                        ) {
-                                            Text(
-                                                text = if (isPro) "PRO ACTIVE" else "PRO ⭐ (₹15/mo)",
-                                                color = if (isPro) Color(0xFF10B981) else Color(0xFFF97316),
-                                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, fontWeight = FontWeight.Bold),
-                                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
-                                            )
-                                        }
                                     }
                                     Text(
                                         text = if (isPro) "Get notified 3 days before due date" else "WhatsApp & notification alerts (Available in PRO)",
