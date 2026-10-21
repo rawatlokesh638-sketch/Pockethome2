@@ -82,9 +82,14 @@ data class Family(
 
 data class ProStatus(
     val isPro: Boolean = false,
-    val status: String = "NONE", // NONE, PENDING, ACTIVE
+    val status: String = "NONE", // NONE, PENDING, ACTIVE, EXPIRED
+    val planPeriod: String = "MONTHLY",
     val expiryDate: String = "",
-    val requestedAt: Long = 0
+    val expiryTimestamp: Long = 0L,
+    val requestedAt: Long = 0L,
+    val approvedAt: Long = 0L,
+    val durationDays: Int = 30,
+    val aiCredits: Int = 100
 )
 
 data class ProRequest(
@@ -94,8 +99,10 @@ data class ProRequest(
     val txnId: String = "",
     val utrNumber: String = "",
     val amount: String = "15",
+    val planPeriod: String = "MONTHLY",
+    val durationDays: Int = 30,
     val requestedAt: Long = System.currentTimeMillis(),
-    val status: String = "PENDING" // PENDING, APPROVED, REJECTED
+    val status: String = "PENDING" // PENDING, ACTIVE, REJECTED
 )
 
 data class AiChatMessage(

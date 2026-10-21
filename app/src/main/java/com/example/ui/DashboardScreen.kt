@@ -159,21 +159,25 @@ fun DashboardScreen(
                             .testTag("dashboard_root"),
                         snackbarHost = { SnackbarHost(snackbarHostState) },
                         topBar = {
-                            com.example.ui.components.DashboardTopBar(
-                                currentTab = uiState.activeTab,
-                                onTabSelected = { viewModel.selectTab(it) },
-                                onOpenAiAdvisor = { showAiGrowthSheet = true }
-                            )
+                            if (uiState.activeTab != AppTab.CHAT) {
+                                com.example.ui.components.DashboardTopBar(
+                                    currentTab = uiState.activeTab,
+                                    onTabSelected = { viewModel.selectTab(it) },
+                                    onOpenAiAdvisor = { showAiGrowthSheet = true }
+                                )
+                            }
                         },
                         floatingActionButton = {
-                            FloatingActionButton(
-                                onClick = { 
-                                    editingTransaction = null
-                                    showAddExpenseScreen = true 
-                                },
-                                containerColor = com.example.ui.theme.RoyalBlue
-                            ) {
-                                Icon(Icons.Default.Add, contentDescription = "Add")
+                            if (uiState.activeTab != AppTab.CHAT) {
+                                FloatingActionButton(
+                                    onClick = { 
+                                        editingTransaction = null
+                                        showAddExpenseScreen = true 
+                                    },
+                                    containerColor = com.example.ui.theme.RoyalBlue
+                                ) {
+                                    Icon(Icons.Default.Add, contentDescription = "Add")
+                                }
                             }
                         }
                     ) { innerPadding ->
@@ -329,7 +333,7 @@ fun DashboardScreen(
                                         AiChatScreen(
                                             uiState = uiState,
                                             chatMessages = chatMessages,
-                                            aiCredits = if (uiState.proStatus.isPro) 100 else 0,
+                                            aiCredits = if (uiState.proStatus.isPro) uiState.proStatus.aiCredits else 0,
                                             isGenerating = uiState.isAiGenerating,
                                             onSendMessage = { query ->
                                                 viewModel.sendMessageToAi(query)

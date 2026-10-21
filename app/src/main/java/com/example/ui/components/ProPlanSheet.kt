@@ -146,7 +146,7 @@ fun ProPlanSheet(
 
             when (proStatus.status) {
                 "ACTIVE" -> {
-                    ProActiveSection(onDismiss)
+                    ProActiveSection(proStatus, onDismiss)
                 }
                 "PENDING" -> {
                     ProPendingSection(onDismiss)
@@ -225,7 +225,7 @@ fun ProPlanSheet(
 }
 
 @Composable
-private fun ProActiveSection(onDismiss: () -> Unit) {
+private fun ProActiveSection(proStatus: ProStatus, onDismiss: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
@@ -243,8 +243,20 @@ private fun ProActiveSection(onDismiss: () -> Unit) {
                 style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
                 color = MoneyGreen
             )
+            Spacer(modifier = Modifier.height(4.dp))
+            val validityMsg = if (proStatus.expiryDate.isNotEmpty()) {
+                "Plan: ${proStatus.planPeriod} • Valid till ${proStatus.expiryDate}"
+            } else {
+                "Plan: ${proStatus.planPeriod} • Active for ${proStatus.durationDays} days"
+            }
             Text(
-                text = "Aap ab PRO features ka anand le sakte hain. Agla recharge ek mahine baad karein.",
+                text = validityMsg,
+                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
+                color = MaterialTheme.colorScheme.primary
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = "Aapka plan Firebase se approved hai. Sabhi PRO features aur 100 AI credits unlocked hain.",
                 style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.onSurfaceVariant

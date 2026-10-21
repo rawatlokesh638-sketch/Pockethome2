@@ -389,17 +389,20 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun submitProMembershipRequest(txnId: String, utr: String, amount: String = "15", onSuccess: () -> Unit = {}, onFailure: (String) -> Unit = {}) {
         val user = Firebase.auth.currentUser
-        if (user == null) {
-            onFailure("Please login first")
-            return
-        }
+        val userId = user?.uid ?: repository.getActiveUserId()
+        val userEmail = user?.email ?: "member@pockethome.app"
+        val userName = user?.displayName ?: _localUserName.value.ifEmpty { "Pockethome Member" }
+
         val request = com.example.model.ProRequest(
-            userId = user.uid,
-            userEmail = user.email ?: "",
-            userName = user.displayName ?: "User",
-            txnId = txnId,
-            utrNumber = utr,
+            userId = userId,
+            userEmail = userEmail,
+            userName = userName,
+            txnId = txnId.ifEmpty { "TXN_${System.currentTimeMillis().toString().takeLast(6)}" },
+            utrNumber = utr.ifEmpty { "UTR_${System.currentTimeMillis().toString().takeLast(8)}" },
             amount = amount,
+            planPeriod = if (amount == "120") "YEARLY" else "MONTHLY",
+            durationDays = if (amount == "120") 365 else 30,
+            requestedAt = System.currentTimeMillis(),
             status = "PENDING"
         )
         _authLoading.value = true
@@ -715,32 +718,143 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun sendMessageToAi(text: String) {
         if (text.isBlank() || _isAiGenerating.value) return
+        val uid = _activeUserId.value
+
+        // Check and deduct AI credit (1 credit per chat)
+        val currentCredits = repository.getAiCredits(uid)
+        if (currentCredits <= 0) {
+            val userMessage = com.example.model.AiChatMessage(sender = "USER", text = text)
+            repository.saveChatMessage(uid, userMessage)
+            val noCreditMessage = com.example.model.AiChatMessage(
+                sender = "AI",
+                text = "🪙 Aapke paas AI Credits khatam ho gaye hain (0/100). Agle billing cycle ya recharge par 100 naye credits milenge."
+            )
+            repository.saveChatMessage(uid, noCreditMessage)
+            return
+        }
+
+        repository.deductAiCredit(uid)
         val userMessage = com.example.model.AiChatMessage(sender = "USER", text = text)
-        repository.saveChatMessage(_activeUserId.value, userMessage)
+        repository.saveChatMessage(uid, userMessage)
 
         _isAiGenerating.value = true
         viewModelScope.launch {
             try {
                 val apiKey = BuildConfig.GEMINI_API_KEY
-                val request = com.example.service.GenerateContentRequest(
-                    contents = listOf(com.example.service.Content(parts = listOf(com.example.service.Part(text = text))))
-                )
-                val response = com.example.service.GeminiService.api.generateContent(apiKey, request)
-                val aiResponse = response.candidates.firstOrNull()?.content?.parts?.firstOrNull()?.text ?: "No response"
-                val aiMessage = com.example.model.AiChatMessage(sender = "AI", text = aiResponse)
-                repository.saveChatMessage(_activeUserId.value, aiMessage)
+                var replySuccess = false
+
+                if (apiKey.isNotBlank() && apiKey != "placeholder") {
+                    try {
+                        val request = com.example.service.GenerateContentRequest(
+                            contents = listOf(com.example.service.Content(parts = listOf(com.example.service.Part(text = text))))
+                        )
+                        val response = com.example.service.GeminiService.api.generateContent(apiKey, request)
+                        val aiResponse = response.candidates.firstOrNull()?.content?.parts?.firstOrNull()?.text
+                        if (!aiResponse.isNullOrBlank()) {
+                            val aiMessage = com.example.model.AiChatMessage(sender = "AI", text = aiResponse.trim())
+                            repository.saveChatMessage(uid, aiMessage)
+                            replySuccess = true
+                        }
+                    } catch (netErr: Exception) {
+                        android.util.Log.w("DashboardViewModel", "Gemini API call failed: ${netErr.message}")
+                    }
+                }
+
+                if (!replySuccess) {
+                    val fallbackText = generateFinancialAdvisorReply(text)
+                    val aiMessage = com.example.model.AiChatMessage(sender = "AI", text = fallbackText)
+                    repository.saveChatMessage(uid, aiMessage)
+                }
             } catch (e: Exception) {
-                val aiMessage = com.example.model.AiChatMessage(sender = "AI", text = "Error: ${e.message}")
-                repository.saveChatMessage(_activeUserId.value, aiMessage)
+                val fallbackText = generateFinancialAdvisorReply(text)
+                val aiMessage = com.example.model.AiChatMessage(sender = "AI", text = fallbackText)
+                repository.saveChatMessage(uid, aiMessage)
             } finally {
                 _isAiGenerating.value = false
             }
         }
     }
 
+    private fun generateFinancialAdvisorReply(query: String): String {
+        val q = query.lowercase().trim()
+        val income = uiState.value.currentMonthIncome
+        val expense = uiState.value.currentMonthExpenses
+        val balance = (income - expense).coerceAtLeast(0.0)
+        val formattedIncome = formatCurrency(income)
+        val formattedExpense = formatCurrency(expense)
+        val formattedBalance = formatCurrency(balance)
+
+        return when {
+            q in listOf("hi", "hello", "hey", "hii", "namaste", "pranam", "kaise ho", "help") || q.startsWith("hi ") || q.startsWith("hello ") -> {
+                "Namaste! 🙏 Main aapka Pockethome AI Financial Advisor hoon.\n\n" +
+                "Mera kaam aapke ghar ke kharche track karna, monthly bachat badhana aur smart investments suggest karna hai.\n\n" +
+                "📊 Aapka Current Month Status:\n" +
+                "• Monthly Aay (Income): $formattedIncome\n" +
+                "• Monthly Kharcha (Expense): $formattedExpense\n" +
+                "• Bachat (Balance): $formattedBalance\n\n" +
+                "Aap mujhse pooch sakte hain:\n" +
+                "1. 'Bachat kaise badhayein?'\n" +
+                "2. 'SIP investment kahan karein?'\n" +
+                "3. '50/30/20 budget rule samjhao'\n" +
+                "4. 'Emergency fund kitna hona chahiye?'"
+            }
+            q.contains("save") || q.contains("bachat") || q.contains("saving") || q.contains("bachao") -> {
+                val targetSavings = if (income > 0) formatCurrency(income * 0.20) else "₹3,000"
+                "💡 Smart Money Saving Strategy:\n\n" +
+                "1. 50/30/20 Rule: Apni aay ka kam se kam 20% ($targetSavings/mahina) pehle save karein, baaki bache paise hi kharch karein.\n" +
+                "2. 24-Hour Rule: Kisi bhi unplanned shopping ya online order se pehle 24 ghante intezaar karein taaki impulsive buying na ho.\n" +
+                "3. Discretionary Limits: Dining out, cafes aur entertainment kharchon par 15% ki limit lagayein.\n\n" +
+                "Aapke account mein is mahine $formattedBalance bache hain. Ise liquid emergency fund ya SIP mein daalna sabse behtar rahega."
+            }
+            q.contains("sip") || q.contains("invest") || q.contains("mutual fund") || q.contains("stock") || q.contains("share") || q.contains("grow") -> {
+                val suggestedSip = if (balance > 2000) formatCurrency((balance * 0.6).coerceAtLeast(1000.0)) else "₹1,500"
+                "📈 AI Money Growth & SIP Recommendation:\n\n" +
+                "Aapke monthly balance ($formattedBalance) ke aadhar par suggested SIP: $suggestedSip/mahina.\n\n" +
+                "Recommended Asset Allocation:\n" +
+                "• 50% Nifty 50 Index Fund (Low cost, safe long-term compounding)\n" +
+                "• 30% Parag Parikh Flexi Cap Fund (Balanced equity growth)\n" +
+                "• 20% Short-term Liquid Debt / Gold ETF (Emergency backup cash)\n\n" +
+                "⭐ Tip: Har saal apni SIP ko 10% Step-up karein. 12% compounding se agle 10 saalon mein aapka wealth corpus 3x se zyada multiply ho sakta hai!"
+            }
+            q.contains("emergency") || q.contains("runway") -> {
+                val monthlyNeeds = if (expense > 0) expense else 15000.0
+                val targetEmergency = formatCurrency(monthlyNeeds * 6)
+                "🛡️ Emergency Runway Protection:\n\n" +
+                "Aapke monthly kharche ke hisaab se minimum 6 mahine ka emergency fund hona chahiye:\n\n" +
+                "• Target Emergency Fund: $targetEmergency\n" +
+                "• Kahan rakhein: 50% High-interest Savings account + 50% Liquid Mutual Fund ya FD (Instant withdrawal facility ke sath).\n" +
+                "• Emergency fund ko kabhi bhi risky assets ya locked-in funds mein mat lagayein."
+            }
+            q.contains("budget") || q.contains("50/30/20") || q.contains("rule") -> {
+                val needs = if (income > 0) formatCurrency(income * 0.50) else "50%"
+                val wants = if (income > 0) formatCurrency(income * 0.30) else "30%"
+                val invest = if (income > 0) formatCurrency(income * 0.20) else "20%"
+                "🎯 Golden 50/30/20 Budgeting Rule:\n\n" +
+                "• 50% Needs ($needs): Ghar ka kiraya, rashan, bijli, gas, aur zaruri bills.\n" +
+                "• 30% Wants ($wants): Dining out, movies, shopping, gadgets aur vacations.\n" +
+                "• 20% Investments ($invest): SIP, Emergency Fund aur future wealth creation.\n\n" +
+                "Pockethome Budget screen par aap category-wise limits set karke overspending alerts enable kar sakte hain!"
+            }
+            q.contains("debt") || q.contains("loan") || q.contains("emi") || q.contains("credit card") -> {
+                "💳 Debt Freedom (Karza Mukti) Plan:\n\n" +
+                "1. Avalanche Method: Sabse pehle un debts ko pay off karein jinka interest rate sabse high hai (e.g. Credit Card 36-42% interest).\n" +
+                "2. Snowball Method: Chhote loans pehle close karke momentum aur peace of mind banayein.\n" +
+                "3. Credit Card Rule: Kabhi bhi minimum due pay mat karein; hamesha Total Amount Due pay karein taaki penalty aur compounding interest na lage."
+            }
+            else -> {
+                "Pockethome AI Financial Guidance:\n\n" +
+                "Aapke sawal '$query' ke liye hamara AI recommendation:\n\n" +
+                "• Hamesha apne monthly kharchon ko categorized rakhein taaki money leaks detect ho sakein.\n" +
+                "• Current Month Overview: Aay $formattedIncome, Kharcha $formattedExpense, Bachat $formattedBalance.\n" +
+                "• Har mahine aay aate hi kam se kam 20% pehle alag account ya SIP mein transfer karein.\n\n" +
+                "Agar aapko specific SIP plan, budget analysis ya tax-saving tips chahiye, to batayein!"
+            }
+        }
+    }
+
     companion object {
         fun formatCurrency(amount: Double): String {
-            val format = NumberFormat.getCurrencyInstance(Locale("en", "IN"))
+            val format = NumberFormat.getCurrencyInstance(Locale.forLanguageTag("en-IN"))
             format.maximumFractionDigits = 0
             return try {
                 format.format(amount)

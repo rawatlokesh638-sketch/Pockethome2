@@ -326,15 +326,53 @@ class ExpenseRepository(private val context: Context) {
         }
         userRef.child("budgets").child(currentMonthStr).addValueEventListener(budgetListener!!)
 
-        // Pro Status Listener
+        // Pro Status Listener (Only active when approved in Firebase, valid for durationDays)
         proStatusListener?.let { userRef.child("pro_status").removeEventListener(it) }
         proStatusListener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 if (snapshot.exists()) {
                     try {
                         snapshot.getValue(ProStatus::class.java)?.let { ps ->
-                            val updatedPs = if (ps.status == "ACTIVE" || ps.isPro) ps.copy(isPro = true) else ps
-                            persistLocalProStatus(userId, updatedPs)
+                            val currentTime = System.currentTimeMillis()
+                            val durationMillis = ps.durationDays.coerceAtLeast(1) * 24L * 60L * 60L * 1000L
+
+                            val finalStatus = when {
+                                ps.status == "ACTIVE" || ps.isPro -> {
+                                    val expiryTime = when {
+                                        ps.expiryTimestamp > 0L -> ps.expiryTimestamp
+                                        ps.approvedAt > 0L -> ps.approvedAt + durationMillis
+                                        ps.requestedAt > 0L -> ps.requestedAt + durationMillis
+                                        else -> currentTime + durationMillis
+                                    }
+
+                                    if (currentTime > expiryTime) {
+                                        // Plan duration has completed!
+                                        ps.copy(
+                                            isPro = false,
+                                            status = "EXPIRED",
+                                            expiryTimestamp = expiryTime,
+                                            aiCredits = 0
+                                        )
+                                    } else {
+                                        val sdf = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
+                                        val expDateStr = ps.expiryDate.ifEmpty { sdf.format(Date(expiryTime)) }
+                                        ps.copy(
+                                            isPro = true,
+                                            status = "ACTIVE",
+                                            expiryDate = expDateStr,
+                                            expiryTimestamp = expiryTime,
+                                            aiCredits = ps.aiCredits.coerceAtLeast(1)
+                                        )
+                                    }
+                                }
+                                ps.status == "PENDING" -> {
+                                    ps.copy(isPro = false, status = "PENDING")
+                                }
+                                else -> {
+                                    ps.copy(isPro = false, status = "NONE")
+                                }
+                            }
+                            persistLocalProStatus(userId, finalStatus)
                         }
                     } catch (e: Exception) {
                         Log.e("ExpenseRepo", "Error parsing pro status", e)
@@ -470,23 +508,50 @@ class ExpenseRepository(private val context: Context) {
         rtdb?.reference?.child("users")?.child(userId)?.child("budgets")?.child(currentMonthStr)?.setValue(data)
     }
 
+    fun getAiCredits(userId: String = ""): Int {
+        val status = _localProStatus.value
+        return if (status.isPro || status.status == "ACTIVE") {
+            status.aiCredits
+        } else {
+            0
+        }
+    }
+
+    fun deductAiCredit(userId: String = ""): Int {
+        val uid = userId.ifEmpty { getActiveUserId() }
+        val current = _localProStatus.value
+        val newCredits = (current.aiCredits - 1).coerceAtLeast(0)
+        val updated = current.copy(aiCredits = newCredits)
+        persistLocalProStatus(uid, updated)
+        rtdb?.reference?.child("users")?.child(uid)?.child("pro_status")?.child("aiCredits")?.setValue(newCredits)
+        return newCredits
+    }
+
     fun submitProRequest(request: ProRequest, onSuccess: () -> Unit = {}, onFailure: (Exception) -> Unit = {}) {
         val userId = request.userId.ifEmpty { getActiveUserId() }
-        val activeStatus = ProStatus(isPro = true, status = "ACTIVE", requestedAt = System.currentTimeMillis())
-        persistLocalProStatus(userId, activeStatus)
+        val days = if (request.amount == "120" || request.planPeriod == "YEARLY") 365 else 30
+        val pendingStatus = ProStatus(
+            isPro = false,
+            status = "PENDING",
+            planPeriod = if (days == 365) "YEARLY" else "MONTHLY",
+            durationDays = days,
+            requestedAt = System.currentTimeMillis()
+        )
+        persistLocalProStatus(userId, pendingStatus)
+        onSuccess()
 
         val db = rtdb
         if (db != null) {
-            val reqData = request.copy(userId = userId, status = "ACTIVE")
+            val reqData = request.copy(
+                userId = userId,
+                status = "PENDING",
+                planPeriod = if (days == 365) "YEARLY" else "MONTHLY",
+                durationDays = days,
+                requestedAt = System.currentTimeMillis()
+            )
             db.reference.child("pro_requests").child(userId).setValue(reqData)
-                .addOnSuccessListener {
-                    db.reference.child("users").child(userId).child("pro_status").setValue(activeStatus)
-                        .addOnSuccessListener { onSuccess() }
-                        .addOnFailureListener { onFailure(it) }
-                }
-                .addOnFailureListener { onFailure(it) }
-        } else {
-            onSuccess()
+            db.reference.child("pro_requests_history").push().setValue(reqData)
+            db.reference.child("users").child(userId).child("pro_status").setValue(pendingStatus)
         }
     }
 
