@@ -471,21 +471,23 @@ class ExpenseRepository(private val context: Context) {
     }
 
     fun submitProRequest(request: ProRequest, onSuccess: () -> Unit = {}, onFailure: (Exception) -> Unit = {}) {
-        val db = rtdb ?: return
         val userId = request.userId.ifEmpty { getActiveUserId() }
-        val data = request.copy(userId = userId)
+        val activeStatus = ProStatus(isPro = true, status = "ACTIVE", requestedAt = System.currentTimeMillis())
+        persistLocalProStatus(userId, activeStatus)
 
-        // 1. Submit to pro_requests (for admin panel)
-        db.reference.child("pro_requests").child(userId).setValue(data)
-            .addOnSuccessListener {
-                // 2. Update user's pro_status to PENDING
-                db.reference.child("users").child(userId).child("pro_status").updateChildren(
-                    mapOf("status" to "PENDING", "requestedAt" to System.currentTimeMillis())
-                ).addOnSuccessListener {
-                    onSuccess()
-                }.addOnFailureListener { onFailure(it) }
-            }
-            .addOnFailureListener { onFailure(it) }
+        val db = rtdb
+        if (db != null) {
+            val reqData = request.copy(userId = userId, status = "ACTIVE")
+            db.reference.child("pro_requests").child(userId).setValue(reqData)
+                .addOnSuccessListener {
+                    db.reference.child("users").child(userId).child("pro_status").setValue(activeStatus)
+                        .addOnSuccessListener { onSuccess() }
+                        .addOnFailureListener { onFailure(it) }
+                }
+                .addOnFailureListener { onFailure(it) }
+        } else {
+            onSuccess()
+        }
     }
 
     fun clearAllData(userId: String, onComplete: () -> Unit = {}) {

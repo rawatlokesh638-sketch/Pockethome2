@@ -330,7 +330,7 @@ fun DashboardScreen(
                                             uiState = uiState,
                                             chatMessages = chatMessages,
                                             aiCredits = if (uiState.proStatus.isPro) 100 else 0,
-                                            isGenerating = false,
+                                            isGenerating = uiState.isAiGenerating,
                                             onSendMessage = { query ->
                                                 viewModel.sendMessageToAi(query)
                                             },

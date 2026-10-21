@@ -103,7 +103,8 @@ data class DashboardUiState(
     val hasLocationPermission: Boolean = false,
     val deviceLocation: String = "",
     val scannedSmsCount: Int = 0,
-    val proStatus: com.example.model.ProStatus = com.example.model.ProStatus()
+    val proStatus: com.example.model.ProStatus = com.example.model.ProStatus(),
+    val isAiGenerating: Boolean = false
 )
 
 class DashboardViewModel(application: Application) : AndroidViewModel(application) {
@@ -116,6 +117,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     private val _hasLocationPermission = MutableStateFlow(false)
     private val _deviceLocation = MutableStateFlow("")
     private val _scannedSmsCount = MutableStateFlow(0)
+    private val _isAiGenerating = MutableStateFlow(false)
 
     private val _activeTab = MutableStateFlow(AppTab.HOME)
     private val _authMode = MutableStateFlow(if (Firebase.auth.currentUser != null) AuthMode.DASHBOARD else AuthMode.LOGIN)
@@ -175,9 +177,9 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         )
     }
 
-    val uiState: StateFlow<DashboardUiState> = combine(combinedDataFlow, filterFlow) { data, filters ->
+    val uiState: StateFlow<DashboardUiState> = combine(combinedDataFlow, filterFlow, _isAiGenerating) { data, filters, isGen ->
         val (allTransactions, allBills, budget, pro) = data
-        computeState(allTransactions, allBills, budget, pro, filters)
+        computeState(allTransactions, allBills, budget, pro, filters).copy(isAiGenerating = isGen)
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
@@ -712,9 +714,11 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     private data class Quad<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
 
     fun sendMessageToAi(text: String) {
+        if (text.isBlank() || _isAiGenerating.value) return
         val userMessage = com.example.model.AiChatMessage(sender = "USER", text = text)
         repository.saveChatMessage(_activeUserId.value, userMessage)
 
+        _isAiGenerating.value = true
         viewModelScope.launch {
             try {
                 val apiKey = BuildConfig.GEMINI_API_KEY
@@ -728,6 +732,8 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
             } catch (e: Exception) {
                 val aiMessage = com.example.model.AiChatMessage(sender = "AI", text = "Error: ${e.message}")
                 repository.saveChatMessage(_activeUserId.value, aiMessage)
+            } finally {
+                _isAiGenerating.value = false
             }
         }
     }
