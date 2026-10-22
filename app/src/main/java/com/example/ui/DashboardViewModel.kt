@@ -20,6 +20,7 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import kotlin.math.roundToInt
 
 data class CategorySpend(
     val categoryName: String,
@@ -45,7 +46,7 @@ enum class ReportsTimeframe {
 }
 
 enum class AppTab {
-    HOME, TRANSACTIONS, REPORTS, BILLS, BUDGET, CHAT
+    HOME, TRANSACTIONS, REPORTS, BILLS, BUDGET, CHAT, LEADERBOARD
 }
 
 enum class AuthMode {
@@ -104,7 +105,11 @@ data class DashboardUiState(
     val deviceLocation: String = "",
     val scannedSmsCount: Int = 0,
     val proStatus: com.example.model.ProStatus = com.example.model.ProStatus(),
-    val isAiGenerating: Boolean = false
+    val isAiGenerating: Boolean = false,
+    val userXp: Int = 0,
+    val financialHealthScoreInt: Int = 50,
+    val userTier: com.example.model.UserLevelTier = com.example.model.UserLevelTier.IRON,
+    val leaderboardEntries: List<com.example.model.LeaderboardEntry> = emptyList()
 )
 
 class DashboardViewModel(application: Application) : AndroidViewModel(application) {
@@ -177,9 +182,14 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         )
     }
 
-    val uiState: StateFlow<DashboardUiState> = combine(combinedDataFlow, filterFlow, _isAiGenerating) { data, filters, isGen ->
+    private val _leaderboard = MutableStateFlow<List<com.example.model.LeaderboardEntry>>(emptyList())
+
+    val uiState: StateFlow<DashboardUiState> = combine(combinedDataFlow, filterFlow, _isAiGenerating, _leaderboard) { data, filters, isGen, leaderboard ->
         val (allTransactions, allBills, budget, pro) = data
-        computeState(allTransactions, allBills, budget, pro, filters).copy(isAiGenerating = isGen)
+        computeState(allTransactions, allBills, budget, pro, filters).copy(
+            isAiGenerating = isGen,
+            leaderboardEntries = leaderboard
+        )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
@@ -209,6 +219,11 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
             repository.observeProStatus().collect { ps ->
                 _proStatus.value = ps
                 _isProUser.value = ps.isPro || ps.status == "ACTIVE"
+            }
+        }
+        viewModelScope.launch {
+            repository.observeLeaderboard().collect { list ->
+                _leaderboard.value = list
             }
         }
         setupAuthListener()
@@ -652,6 +667,18 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
             compareBy<Bill> { it.isPaid }.thenBy { it.dueDate }
         )
 
+        val savingsRatio = if (incomeCurrent > 0) (remainingBalance / incomeCurrent).coerceIn(0.0, 1.0) else 0.0
+        val budgetHealth = if (monthlyBudgetAmount > 0) (1.0 - (expensesCurrent / monthlyBudgetAmount).coerceIn(0.0, 1.0)) else 0.5
+        val rawHealthScore = (savingsRatio * 60.0) + (budgetHealth * 40.0)
+        val healthScoreInt = Math.round(rawHealthScore).toInt().coerceIn(10, 100)
+        val transactionBonus = (allTransactions.size * 20).coerceAtMost(400)
+        val savingsBonus = Math.round(savingsRatio * 500.0).toInt()
+        val computedXp = (healthScoreInt * 40) + transactionBonus + savingsBonus
+        val computedTier = com.example.model.UserLevelTier.getTierForXp(computedXp)
+
+        val userNameVal = Firebase.auth.currentUser?.displayName?.ifEmpty { _localUserName.value } ?: _localUserName.value.ifEmpty { "User" }
+        repository.syncUserXpAndHealthScore(_activeUserId.value, computedXp, healthScoreInt, userNameVal)
+
         return DashboardUiState(
             currentMonthExpenses = expensesCurrent,
             currentMonthIncome = incomeCurrent,
@@ -685,7 +712,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
             selectedSortOption = filters.sortOption,
             searchQuery = filters.searchQuery,
             activeUserId = _activeUserId.value,
-            userName = Firebase.auth.currentUser?.displayName?.ifEmpty { _localUserName.value } ?: _localUserName.value.ifEmpty { "User" },
+            userName = userNameVal,
             currentDateDisplay = currentDateDisplay,
             activeMonthDisplay = currentMonthDisplay,
             isProUser = proStatus.isPro || proStatus.status == "ACTIVE",
@@ -693,7 +720,10 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
             hasSmsPermission = _hasSmsPermission.value,
             hasLocationPermission = _hasLocationPermission.value,
             deviceLocation = _deviceLocation.value,
-            scannedSmsCount = _scannedSmsCount.value
+            scannedSmsCount = _scannedSmsCount.value,
+            userXp = computedXp,
+            financialHealthScoreInt = healthScoreInt,
+            userTier = computedTier
         )
     }
 
@@ -738,30 +768,93 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         repository.saveChatMessage(uid, userMessage)
 
         _isAiGenerating.value = true
-        viewModelScope.launch {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             try {
-                val apiKey = BuildConfig.GEMINI_API_KEY
+                val rawKey = BuildConfig.GEMINI_API_KEY.trim()
+                val apiKey = if (rawKey.isNotBlank() && !rawKey.contains("placeholder", ignoreCase = true)) rawKey else ""
                 var replySuccess = false
 
-                if (apiKey.isNotBlank() && apiKey != "placeholder") {
+                if (apiKey.isNotBlank()) {
                     try {
-                        val request = com.example.service.GenerateContentRequest(
-                            contents = listOf(com.example.service.Content(parts = listOf(com.example.service.Part(text = text))))
+                        val income = uiState.value.currentMonthIncome
+                        val expense = uiState.value.currentMonthExpenses
+                        val balance = (income - expense).coerceAtLeast(0.0)
+                        val monthlyBudget = uiState.value.monthlyBudget
+                        val formattedIncome = formatCurrency(income)
+                        val formattedExpense = formatCurrency(expense)
+                        val formattedBalance = formatCurrency(balance)
+                        val formattedBudget = formatCurrency(monthlyBudget)
+
+                        val systemInstruction = com.example.service.SystemInstruction(
+                            parts = listOf(
+                                com.example.service.Part(
+                                    text = "You are Pockethome AI, a friendly, intelligent personal financial advisor for Indian households. " +
+                                           "Always provide helpful, encouraging, and accurate advice in Hinglish or English. " +
+                                           "Live User Financial Context:\n" +
+                                           "• Monthly Income: $formattedIncome\n" +
+                                           "• Monthly Expense: $formattedExpense\n" +
+                                           "• Monthly Savings/Balance: $formattedBalance\n" +
+                                           "• Monthly Budget: $formattedBudget\n" +
+                                           "Give specific guidance on budgeting, SIP investments, expense reduction, emergency funds, and wealth growth."
+                                )
+                            )
                         )
-                        val response = com.example.service.GeminiService.api.generateContent(apiKey, request)
-                        val aiResponse = response.candidates.firstOrNull()?.content?.parts?.firstOrNull()?.text
-                        if (!aiResponse.isNullOrBlank()) {
-                            val aiMessage = com.example.model.AiChatMessage(sender = "AI", text = aiResponse.trim())
+
+                        val historyList = chatMessages.value.takeLast(6).map { msg ->
+                            com.example.service.Content(
+                                parts = listOf(com.example.service.Part(text = msg.text)),
+                                role = if (msg.sender == "USER") "user" else "model"
+                            )
+                        }
+                        val currentPrompt = com.example.service.Content(
+                            parts = listOf(com.example.service.Part(text = text)),
+                            role = "user"
+                        )
+                        val fullContents = historyList + currentPrompt
+
+                        val request = com.example.service.GenerateContentRequest(
+                            contents = fullContents,
+                            systemInstruction = systemInstruction
+                        )
+
+                        var aiResponseText: String? = null
+                        val modelsToTry = listOf(
+                            "gemini-2.5-flash",
+                            "gemini-3.1-flash-lite-preview",
+                            "gemini-3.5-flash",
+                            "gemini-3.6-flash",
+                            "gemini-3.8-flash"
+                        )
+
+                        for (model in modelsToTry) {
+                            try {
+                                val response = com.example.service.GeminiService.api.generateContentForModel(model, apiKey, request)
+                                val textResult = response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
+                                if (!textResult.isNullOrBlank()) {
+                                    aiResponseText = textResult
+                                    android.util.Log.d("DashboardViewModel", "Gemini response received using model: $model")
+                                    break
+                                }
+                            } catch (modelErr: Exception) {
+                                android.util.Log.w("DashboardViewModel", "Model $model failed: ${modelErr.message}, trying next fallback...")
+                            }
+                        }
+
+                        if (!aiResponseText.isNullOrBlank()) {
+                            val aiMessage = com.example.model.AiChatMessage(sender = "AI", text = aiResponseText.trim())
                             repository.saveChatMessage(uid, aiMessage)
                             replySuccess = true
                         }
                     } catch (netErr: Exception) {
-                        android.util.Log.w("DashboardViewModel", "Gemini API call failed: ${netErr.message}")
+                        android.util.Log.e("DashboardViewModel", "Gemini API call failed: ${netErr.message}")
                     }
                 }
 
                 if (!replySuccess) {
-                    val fallbackText = generateFinancialAdvisorReply(text)
+                    val offlineHeader = if (apiKey.isBlank()) {
+                        "🔑 *Gemini API Key Required*\nAI Studio Secrets Panel ya GitHub Secrets me `GEMINI_API_KEY` set karein taaki real-time Gemini AI se responses mil sakein.\n\n"
+                    } else ""
+                    val fallbackText = offlineHeader + generateFinancialAdvisorReply(text)
                     val aiMessage = com.example.model.AiChatMessage(sender = "AI", text = fallbackText)
                     repository.saveChatMessage(uid, aiMessage)
                 }

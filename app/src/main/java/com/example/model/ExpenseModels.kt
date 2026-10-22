@@ -112,6 +112,60 @@ data class AiChatMessage(
     val timestamp: Long = System.currentTimeMillis()
 )
 
+enum class UserLevelTier(
+    val levelNumber: Int,
+    val displayName: String,
+    val emoji: String,
+    val minXp: Int,
+    val maxXp: Int,
+    val title: String,
+    val hexColor: Long
+) {
+    IRON(1, "Iron", "🪙", 0, 150, "Financial Beginner", 0xFF8E8E93),
+    BRONZE(2, "Bronze", "🥉", 150, 350, "Budget Starter", 0xFFCD7F32),
+    COPPER(3, "Copper", "🟤", 350, 600, "Money Saver", 0xFFB87333),
+    SILVER(4, "Silver", "🥈", 600, 1000, "Smart Planner", 0xFFC0C0C0),
+    GOLD(5, "Gold", "🥇", 1000, 1500, "Wealth Builder", 0xFFFFD700),
+    PLATINUM(6, "Platinum", "💠", 1500, 2200, "Financial Strategist", 0xFF00E5FF),
+    DIAMOND(7, "Diamond", "💎", 2200, 3000, "Saving Master", 0xFF00B0FF),
+    RUBY(8, "Ruby", "🔴", 3000, 4000, "Invest Expert", 0xFFFF1744),
+    GRANDMASTER(9, "Grandmaster", "👑", 4000, 5500, "Wealth Champion", 0xFFAA00FF),
+    GOD(10, "God", "⚡", 5500, Int.MAX_VALUE, "Financial Deity", 0xFFFFAB00);
+
+    companion object {
+        fun getTierForXp(xp: Int): UserLevelTier {
+            return values().lastOrNull { xp >= it.minXp } ?: IRON
+        }
+
+        fun getTierForScore(score: Int): UserLevelTier {
+            return when {
+                score >= 99 -> GOD
+                score >= 94 -> GRANDMASTER
+                score >= 88 -> RUBY
+                score >= 80 -> DIAMOND
+                score >= 70 -> PLATINUM
+                score >= 60 -> GOLD
+                score >= 50 -> SILVER
+                score >= 40 -> COPPER
+                score >= 30 -> BRONZE
+                else -> IRON
+            }
+        }
+    }
+}
+
+data class LeaderboardEntry(
+    val userId: String = "",
+    val handleName: String = "SmartSaver",
+    val avatarSeed: Int = 1,
+    val xpPoints: Int = 0,
+    val tierName: String = "Iron",
+    val tierEmoji: String = "🪙",
+    val financialHealthScore: Int = 50,
+    val isCurrentUser: Boolean = false,
+    val rank: Int = 0
+)
+
 data class ExpenseCategoryInfo(
     val id: String,
     val name: String,

@@ -64,11 +64,13 @@ class ExpenseRepository(private val context: Context) {
     private val _localProStatus = MutableStateFlow(ProStatus())
     private val _chatMessages = MutableStateFlow<List<com.example.model.AiChatMessage>>(emptyList())
     val chatMessages = _chatMessages.asStateFlow()
+    private val _leaderboardEntries = MutableStateFlow<List<com.example.model.LeaderboardEntry>>(emptyList())
 
     private var txListener: ValueEventListener? = null
     private var billListener: ValueEventListener? = null
     private var budgetListener: ValueEventListener? = null
     private var proStatusListener: ValueEventListener? = null
+    private var leaderboardListener: ValueEventListener? = null
 
     init {
         ensureFirebaseInitialized()
@@ -140,11 +142,13 @@ class ExpenseRepository(private val context: Context) {
             proStatusListener?.let { userRef.child("pro_status").removeEventListener(it) }
             val currentMonthStr = SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(Date())
             budgetListener?.let { userRef.child("budgets").child(currentMonthStr).removeEventListener(it) }
+            leaderboardListener?.let { database.reference.child("leaderboard_ranks").removeEventListener(it) }
         }
         txListener = null
         billListener = null
         budgetListener = null
         proStatusListener = null
+        leaderboardListener = null
     }
 
     private fun loadLocalCacheForUser(userId: String) {
@@ -386,6 +390,53 @@ class ExpenseRepository(private val context: Context) {
             }
         }
         userRef.child("pro_status").addValueEventListener(proStatusListener!!)
+
+        // Leaderboard Listener
+        leaderboardListener?.let { database.reference.child("leaderboard_ranks").removeEventListener(it) }
+        leaderboardListener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val list = mutableListOf<com.example.model.LeaderboardEntry>()
+                if (snapshot.exists()) {
+                    for (child in snapshot.children) {
+                        try {
+                            child.getValue(com.example.model.LeaderboardEntry::class.java)?.let { entry ->
+                                list.add(entry)
+                            }
+                        } catch (e: Exception) {
+                            Log.e("ExpenseRepo", "Error parsing leaderboard entry", e)
+                        }
+                    }
+                }
+
+                if (list.size < 6) {
+                    val defaultSample = listOf(
+                        com.example.model.LeaderboardEntry("sys_god1", "Aarav WealthGod", 1, 6200, "God", "⚡", 99),
+                        com.example.model.LeaderboardEntry("sys_gm2", "Ananya Champion", 2, 4800, "Grandmaster", "👑", 96),
+                        com.example.model.LeaderboardEntry("sys_ruby3", "Rohan RubySaver", 3, 3400, "Ruby", "🔴", 91),
+                        com.example.model.LeaderboardEntry("sys_dia4", "Priya Diamond", 4, 2600, "Diamond", "💎", 85),
+                        com.example.model.LeaderboardEntry("sys_plat5", "Vikram Platinum", 5, 1800, "Platinum", "💠", 76),
+                        com.example.model.LeaderboardEntry("sys_gold6", "Neha GoldSaver", 6, 1200, "Gold", "🥇", 68)
+                    )
+                    defaultSample.forEach { s ->
+                        if (list.none { it.userId == s.userId }) list.add(s)
+                    }
+                }
+
+                val activeUid = getActiveUserId()
+                val sorted = list.sortedByDescending { it.xpPoints }.mapIndexed { index, item ->
+                    item.copy(
+                        rank = index + 1,
+                        isCurrentUser = (item.userId == activeUid)
+                    )
+                }
+                _leaderboardEntries.value = sorted
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                Log.w("ExpenseRepo", "RTDB leaderboard listen cancelled: ${error.message}")
+            }
+        }
+        database.reference.child("leaderboard_ranks").addValueEventListener(leaderboardListener!!)
     }
 
     fun observeTransactions(userId: String = ""): Flow<List<Transaction>> {
@@ -402,6 +453,30 @@ class ExpenseRepository(private val context: Context) {
 
     fun observeProStatus(userId: String = ""): Flow<ProStatus> {
         return _localProStatus.asStateFlow()
+    }
+
+    fun observeLeaderboard(): Flow<List<com.example.model.LeaderboardEntry>> {
+        return _leaderboardEntries.asStateFlow()
+    }
+
+    fun syncUserXpAndHealthScore(userId: String, xp: Int, healthScore: Int, userName: String) {
+        val uid = userId.ifEmpty { getActiveUserId() }
+        val tier = com.example.model.UserLevelTier.getTierForXp(xp)
+        val handle = if (userName.isNotBlank() && userName != "User") userName else "Saver_${uid.takeLast(4)}"
+        val avatarSeed = (uid.hashCode() and 0x7FFFFFFF) % 10 + 1
+
+        val entry = com.example.model.LeaderboardEntry(
+            userId = uid,
+            handleName = handle,
+            avatarSeed = avatarSeed,
+            xpPoints = xp,
+            tierName = tier.displayName,
+            tierEmoji = tier.emoji,
+            financialHealthScore = healthScore
+        )
+
+        prefs.edit().putInt("cached_user_xp_$uid", xp).apply()
+        rtdb?.reference?.child("leaderboard_ranks")?.child(uid)?.setValue(entry)
     }
 
     fun saveTransaction(transaction: Transaction, onSuccess: () -> Unit = {}, onFailure: (Exception) -> Unit = {}) {

@@ -162,6 +162,8 @@ fun DashboardScreen(
                             if (uiState.activeTab != AppTab.CHAT) {
                                 com.example.ui.components.DashboardTopBar(
                                     currentTab = uiState.activeTab,
+                                    userTier = uiState.userTier,
+                                    userXp = uiState.userXp,
                                     onTabSelected = { viewModel.selectTab(it) },
                                     onOpenAiAdvisor = { showAiGrowthSheet = true }
                                 )
@@ -340,6 +342,14 @@ fun DashboardScreen(
                                             },
                                             onBack = { viewModel.selectTab(AppTab.HOME) },
                                             onUpgradeClicked = { showProPlanSheet = true }
+                                        )
+                                    }
+
+                                    AppTab.LEADERBOARD -> {
+                                        LeaderboardScreen(
+                                            uiState = uiState,
+                                            onBack = { viewModel.selectTab(AppTab.HOME) },
+                                            onOpenProSheet = { showProPlanSheet = true }
                                         )
                                     }
                                 }
