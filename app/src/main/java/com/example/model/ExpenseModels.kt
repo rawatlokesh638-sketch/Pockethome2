@@ -89,7 +89,7 @@ data class ProStatus(
     val requestedAt: Long = 0L,
     val approvedAt: Long = 0L,
     val durationDays: Int = 30,
-    val aiCredits: Int = 100
+    val aiCredits: Int = 20000
 )
 
 data class ProRequest(
@@ -109,6 +109,13 @@ data class AiChatMessage(
     val id: String = java.util.UUID.randomUUID().toString(),
     val sender: String = "USER", // "USER" or "AI"
     val text: String = "",
+    val timestamp: Long = System.currentTimeMillis()
+)
+
+data class AiChatSession(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val title: String = "Financial Chat",
+    val messages: List<AiChatMessage> = emptyList(),
     val timestamp: Long = System.currentTimeMillis()
 )
 

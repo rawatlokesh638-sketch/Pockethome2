@@ -42,6 +42,10 @@ class ExpenseRepository(private val context: Context) {
         Types.newParameterizedType(List::class.java, com.example.model.AiChatMessage::class.java)
     )
 
+    private val chatSessionListAdapter = moshi.adapter<List<com.example.model.AiChatSession>>(
+        Types.newParameterizedType(List::class.java, com.example.model.AiChatSession::class.java)
+    )
+
     private val prefs: SharedPreferences =
         context.getSharedPreferences("pocket_home_prefs", Context.MODE_PRIVATE)
 
@@ -62,8 +66,16 @@ class ExpenseRepository(private val context: Context) {
     private val _localBills = MutableStateFlow<List<Bill>>(emptyList())
     private val _localBudget = MutableStateFlow(Budget())
     private val _localProStatus = MutableStateFlow(ProStatus())
+
+    private val _chatSessions = MutableStateFlow<List<com.example.model.AiChatSession>>(emptyList())
+    val chatSessions = _chatSessions.asStateFlow()
+
+    private val _activeSessionId = MutableStateFlow<String>("")
+    val activeSessionId = _activeSessionId.asStateFlow()
+
     private val _chatMessages = MutableStateFlow<List<com.example.model.AiChatMessage>>(emptyList())
     val chatMessages = _chatMessages.asStateFlow()
+
     private val _leaderboardEntries = MutableStateFlow<List<com.example.model.LeaderboardEntry>>(emptyList())
 
     private var txListener: ValueEventListener? = null
@@ -186,12 +198,38 @@ class ExpenseRepository(private val context: Context) {
                 _localBudget.value = Budget(id = currentMonthStr, userId = userId, month = currentMonthStr, monthlyBudget = 0.0)
             }
 
-            val chatJson = prefs.getString("ai_chat_history_$userId", null)
-            if (!chatJson.isNullOrEmpty()) {
-                val list = chatListAdapter.fromJson(chatJson) ?: emptyList()
-                _chatMessages.value = list
+            val sessionsJson = prefs.getString("ai_chat_sessions_$userId", null)
+            if (!sessionsJson.isNullOrEmpty()) {
+                val sessions = chatSessionListAdapter.fromJson(sessionsJson) ?: emptyList()
+                _chatSessions.value = sessions
+                if (sessions.isNotEmpty()) {
+                    val activeId = _activeSessionId.value.ifEmpty { sessions.first().id }
+                    _activeSessionId.value = activeId
+                    val activeSession = sessions.firstOrNull { it.id == activeId } ?: sessions.first()
+                    _chatMessages.value = activeSession.messages
+                } else {
+                    createNewChatSession(userId)
+                }
             } else {
-                _chatMessages.value = emptyList()
+                val chatJson = prefs.getString("ai_chat_history_$userId", null)
+                val legacyMessages = if (!chatJson.isNullOrEmpty()) {
+                    chatListAdapter.fromJson(chatJson) ?: emptyList()
+                } else emptyList()
+
+                val titleVal = if (legacyMessages.isNotEmpty()) {
+                    legacyMessages.firstOrNull { it.sender == "USER" }?.text?.take(25) ?: "Financial Chat"
+                } else "Financial Chat"
+
+                val defaultSession = com.example.model.AiChatSession(
+                    id = UUID.randomUUID().toString(),
+                    title = titleVal,
+                    messages = legacyMessages,
+                    timestamp = System.currentTimeMillis()
+                )
+                _chatSessions.value = listOf(defaultSession)
+                _activeSessionId.value = defaultSession.id
+                _chatMessages.value = legacyMessages
+                persistChatSessions(userId, listOf(defaultSession))
             }
         } catch (e: Throwable) {
             Log.e("ExpenseRepo", "Error reading local cache for user $userId", e)
@@ -365,7 +403,7 @@ class ExpenseRepository(private val context: Context) {
                                             status = "ACTIVE",
                                             expiryDate = expDateStr,
                                             expiryTimestamp = expiryTime,
-                                            aiCredits = ps.aiCredits.coerceAtLeast(1)
+                                            aiCredits = if (ps.aiCredits < 1000) 20000 else ps.aiCredits
                                         )
                                     }
                                 }
@@ -405,20 +443,6 @@ class ExpenseRepository(private val context: Context) {
                         } catch (e: Exception) {
                             Log.e("ExpenseRepo", "Error parsing leaderboard entry", e)
                         }
-                    }
-                }
-
-                if (list.size < 6) {
-                    val defaultSample = listOf(
-                        com.example.model.LeaderboardEntry("sys_god1", "Aarav WealthGod", 1, 6200, "God", "⚡", 99),
-                        com.example.model.LeaderboardEntry("sys_gm2", "Ananya Champion", 2, 4800, "Grandmaster", "👑", 96),
-                        com.example.model.LeaderboardEntry("sys_ruby3", "Rohan RubySaver", 3, 3400, "Ruby", "🔴", 91),
-                        com.example.model.LeaderboardEntry("sys_dia4", "Priya Diamond", 4, 2600, "Diamond", "💎", 85),
-                        com.example.model.LeaderboardEntry("sys_plat5", "Vikram Platinum", 5, 1800, "Platinum", "💠", 76),
-                        com.example.model.LeaderboardEntry("sys_gold6", "Neha GoldSaver", 6, 1200, "Gold", "🥇", 68)
-                    )
-                    defaultSample.forEach { s ->
-                        if (list.none { it.userId == s.userId }) list.add(s)
                     }
                 }
 
@@ -593,9 +617,13 @@ class ExpenseRepository(private val context: Context) {
     }
 
     fun deductAiCredit(userId: String = ""): Int {
+        return deductAiTokens(userId, 50)
+    }
+
+    fun deductAiTokens(userId: String = "", tokensConsumed: Int = 50): Int {
         val uid = userId.ifEmpty { getActiveUserId() }
         val current = _localProStatus.value
-        val newCredits = (current.aiCredits - 1).coerceAtLeast(0)
+        val newCredits = (current.aiCredits - tokensConsumed).coerceAtLeast(0)
         val updated = current.copy(aiCredits = newCredits)
         persistLocalProStatus(uid, updated)
         rtdb?.reference?.child("users")?.child(uid)?.child("pro_status")?.child("aiCredits")?.setValue(newCredits)
@@ -640,22 +668,105 @@ class ExpenseRepository(private val context: Context) {
         rtdb?.reference?.child("users")?.child(userId)?.removeValue()
     }
 
+    private fun persistChatSessions(userId: String, sessions: List<com.example.model.AiChatSession>) {
+        val uid = userId.ifEmpty { getActiveUserId() }
+        _chatSessions.value = sessions
+        try {
+            val json = chatSessionListAdapter.toJson(sessions)
+            prefs.edit().putString("ai_chat_sessions_$uid", json).apply()
+        } catch (e: Throwable) {
+            Log.e("ExpenseRepo", "Failed to persist chat sessions", e)
+        }
+    }
+
     fun saveChatMessage(userId: String, message: com.example.model.AiChatMessage) {
         val uid = userId.ifEmpty { getActiveUserId() }
-        val current = _chatMessages.value.toMutableList()
-        current.add(message)
-        _chatMessages.value = current
-        try {
-            val json = chatListAdapter.toJson(current)
-            prefs.edit().putString("ai_chat_history_$uid", json).apply()
-        } catch (e: Throwable) {
-            Log.e("ExpenseRepo", "Failed to persist chat message", e)
+        var currentSessions = _chatSessions.value.toMutableList()
+        var activeId = _activeSessionId.value
+
+        if (activeId.isEmpty() || currentSessions.none { it.id == activeId }) {
+            val newSession = com.example.model.AiChatSession(id = UUID.randomUUID().toString(), title = message.text.take(25).ifBlank { "Financial Chat" })
+            currentSessions.add(0, newSession)
+            activeId = newSession.id
+            _activeSessionId.value = activeId
         }
+
+        val sessionIndex = currentSessions.indexOfFirst { it.id == activeId }
+        if (sessionIndex >= 0) {
+            val session = currentSessions[sessionIndex]
+            val updatedMessages = session.messages.toMutableList()
+            updatedMessages.add(message)
+            val updatedTitle = if (session.messages.isEmpty() && message.sender == "USER") message.text.take(28) else session.title
+            val updatedSession = session.copy(title = updatedTitle, messages = updatedMessages, timestamp = System.currentTimeMillis())
+            currentSessions[sessionIndex] = updatedSession
+            _chatMessages.value = updatedMessages
+            persistChatSessions(uid, currentSessions)
+        }
+    }
+
+    fun updateChatMessageText(userId: String, messageId: String, newText: String) {
+        val uid = userId.ifEmpty { getActiveUserId() }
+        val currentSessions = _chatSessions.value.toMutableList()
+        val activeId = _activeSessionId.value
+        val sessionIndex = currentSessions.indexOfFirst { it.id == activeId }
+        if (sessionIndex >= 0) {
+            val session = currentSessions[sessionIndex]
+            val updatedMessages = session.messages.toMutableList()
+            val msgIndex = updatedMessages.indexOfFirst { it.id == messageId }
+            if (msgIndex >= 0) {
+                updatedMessages[msgIndex] = updatedMessages[msgIndex].copy(text = newText)
+                val updatedSession = session.copy(messages = updatedMessages)
+                currentSessions[sessionIndex] = updatedSession
+                _chatMessages.value = updatedMessages
+                persistChatSessions(uid, currentSessions)
+            }
+        }
+    }
+
+    fun createNewChatSession(userId: String): String {
+        val uid = userId.ifEmpty { getActiveUserId() }
+        val newSession = com.example.model.AiChatSession(
+            id = UUID.randomUUID().toString(),
+            title = "New Conversation",
+            messages = emptyList(),
+            timestamp = System.currentTimeMillis()
+        )
+        val currentSessions = _chatSessions.value.toMutableList()
+        currentSessions.add(0, newSession)
+        _activeSessionId.value = newSession.id
+        _chatMessages.value = emptyList()
+        persistChatSessions(uid, currentSessions)
+        return newSession.id
+    }
+
+    fun selectChatSession(userId: String, sessionId: String) {
+        val sessions = _chatSessions.value
+        val target = sessions.firstOrNull { it.id == sessionId }
+        if (target != null) {
+            _activeSessionId.value = target.id
+            _chatMessages.value = target.messages
+        }
+    }
+
+    fun deleteChatSession(userId: String, sessionId: String) {
+        val uid = userId.ifEmpty { getActiveUserId() }
+        val currentSessions = _chatSessions.value.filterNot { it.id == sessionId }.toMutableList()
+        if (currentSessions.isEmpty()) {
+            val newSession = com.example.model.AiChatSession(id = UUID.randomUUID().toString(), title = "Financial Chat", messages = emptyList())
+            currentSessions.add(newSession)
+        }
+        val nextActiveId = if (_activeSessionId.value == sessionId) currentSessions.first().id else _activeSessionId.value
+        _activeSessionId.value = nextActiveId
+        _chatMessages.value = currentSessions.firstOrNull { it.id == nextActiveId }?.messages ?: emptyList()
+        persistChatSessions(uid, currentSessions)
     }
 
     fun clearChatHistory(userId: String) {
         val uid = userId.ifEmpty { getActiveUserId() }
+        val freshSession = com.example.model.AiChatSession(id = UUID.randomUUID().toString(), title = "Financial Chat", messages = emptyList())
+        _activeSessionId.value = freshSession.id
         _chatMessages.value = emptyList()
+        persistChatSessions(uid, listOf(freshSession))
         prefs.edit().remove("ai_chat_history_$uid").apply()
     }
 }

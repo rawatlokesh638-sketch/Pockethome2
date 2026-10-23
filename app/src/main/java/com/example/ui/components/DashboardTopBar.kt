@@ -71,7 +71,7 @@ fun DashboardTopBar(
                         AppTab.REPORTS -> "Reports 📊"
                         AppTab.BILLS -> "Bills RECEIPT 🧾"
                         AppTab.BUDGET -> "Budget 🎯"
-                        AppTab.CHAT -> "AI Advisor 🤖"
+                        AppTab.CHAT -> "AI Chat 🤖"
                         AppTab.LEADERBOARD -> "Leaderboard & Levels 🏆"
                     }
                     DropdownMenuItem(

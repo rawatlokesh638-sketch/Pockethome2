@@ -239,6 +239,7 @@ fun DashboardScreen(
                                                 }
                                             },
                                             onOpenAiGrowthAdvisor = { showAiGrowthSheet = true },
+                                            onOpenSmartAdd = { showSmartAddSheet = true },
                                             onLogout = { viewModel.logout() }
                                         )
                                     }
@@ -332,13 +333,29 @@ fun DashboardScreen(
 
                                     AppTab.CHAT -> {
                                         val chatMessages by viewModel.chatMessages.collectAsState(initial = emptyList())
+                                        val chatSessions by viewModel.chatSessions.collectAsState(initial = emptyList())
+                                        val activeSessionId by viewModel.activeSessionId.collectAsState(initial = "")
                                         AiChatScreen(
                                             uiState = uiState,
                                             chatMessages = chatMessages,
+                                            chatSessions = chatSessions,
+                                            activeSessionId = activeSessionId,
                                             aiCredits = if (uiState.proStatus.isPro) uiState.proStatus.aiCredits else 0,
                                             isGenerating = uiState.isAiGenerating,
                                             onSendMessage = { query ->
                                                 viewModel.sendMessageToAi(query)
+                                            },
+                                            onClearHistory = {
+                                                viewModel.clearChatHistory()
+                                            },
+                                            onNewSession = {
+                                                viewModel.createNewChatSession()
+                                            },
+                                            onSelectSession = { sessionId ->
+                                                viewModel.selectChatSession(sessionId)
+                                            },
+                                            onDeleteSession = { sessionId ->
+                                                viewModel.deleteChatSession(sessionId)
                                             },
                                             onBack = { viewModel.selectTab(AppTab.HOME) },
                                             onUpgradeClicked = { showProPlanSheet = true }

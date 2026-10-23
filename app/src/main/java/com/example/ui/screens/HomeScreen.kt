@@ -91,6 +91,7 @@ fun HomeScreen(
     onToggleBillPaid: (String, Boolean) -> Unit,
     onDeleteBill: (String) -> Unit,
     onOpenAiGrowthAdvisor: () -> Unit = {},
+    onOpenSmartAdd: () -> Unit = {},
     onLogout: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -180,18 +181,6 @@ fun HomeScreen(
             )
         }
 
-        // 2b. AI Daily Money Growth & Wealth Advisor Banner (Comprehensive & Unhidden)
-        item(key = "ai_money_growth_banner") {
-            AiMoneyGrowthBannerCard(
-                isPro = proStatus.isPro || proStatus.status == "ACTIVE",
-                monthlyIncome = uiState.currentMonthIncome,
-                monthlyExpenses = uiState.currentMonthExpenses,
-                categorySpends = uiState.categoryBreakdown,
-                onOpenAdvisor = onOpenAiGrowthAdvisor,
-                onOpenProSheet = onOpenProSheet
-            )
-        }
-
         // 3. Timeframe Switcher: [ This Month ]  [ This Year ]
         item(key = "timeframe_pills") {
             TimeframePills(
@@ -256,6 +245,73 @@ fun HomeScreen(
             )
         }
 
+        // 5.5 Smart Voice & Photo Receipt Order Add Card
+        item(key = "smart_add_card") {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
+                    .clickable(onClick = onOpenSmartAdd),
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = PurpleAccent.copy(alpha = 0.12f)
+                ),
+                border = androidx.compose.foundation.BorderStroke(1.5.dp, PurpleAccent.copy(alpha = 0.4f))
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(CircleShape)
+                                .background(PurpleAccent),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("🎙️", fontSize = 20.sp)
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "Bolke ya Photo se Hisaab Jodein 📸",
+                                    style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "Voice command, bill receipt photo ya order copy-paste karein",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    IconButton(
+                        onClick = onOpenSmartAdd,
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(PurpleAccent)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "Smart Add",
+                            tint = Color.White
+                        )
+                    }
+                }
+            }
+        }
+
         // 6. Quick Action 4 Buttons (Add Expense, Add Income, Add Bill, Set Budget)
         item(key = "quick_actions") {
             QuickActionsGrid(
@@ -268,28 +324,11 @@ fun HomeScreen(
 
         // 7. Spending Trend Overview Bar Chart (Daily / Weekly / Monthly)
         item(key = "spending_trend") {
-            val hasData = chartData.any { it.amount > 0 }
-            if (hasData) {
-                SpendingTrendChart(
-                    chartData = chartData,
-                    currentTimeframe = currentChartTimeframe,
-                    onTimeframeSelected = onChartTimeframeChanged
-                )
-            } else {
-                Card(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-                    shape = RoundedCornerShape(18.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
-                ) {
-                    Box(modifier = Modifier.fillMaxWidth().padding(20.dp), contentAlignment = Alignment.Center) {
-                        Text(
-                            text = "No spending data for this period",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
+            SpendingTrendChart(
+                chartData = chartData,
+                currentTimeframe = currentChartTimeframe,
+                onTimeframeSelected = onChartTimeframeChanged
+            )
         }
 
         // 8. Category-wise Spending Breakdown

@@ -256,7 +256,7 @@ private fun ProActiveSection(proStatus: ProStatus, onDismiss: () -> Unit) {
             )
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = "Aapka plan Firebase se approved hai. Sabhi PRO features aur 100 AI credits unlocked hain.",
+                text = "Aapka plan Firebase se approved hai. Sabhi PRO features aur 20,000 monthly AI tokens unlocked hain.",
                 style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.onSurfaceVariant

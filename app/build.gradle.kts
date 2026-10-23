@@ -20,6 +20,9 @@ android {
         versionCode = 1
         versionName = "1.0"
 
+        val envGeminiKey = System.getenv("GEMINI_API_KEY") ?: ""
+        buildConfigField("String", "GEMINI_API_KEY_ENV", "\"$envGeminiKey\"")
+
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
 

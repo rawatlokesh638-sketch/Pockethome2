@@ -105,28 +105,31 @@ fun PinScreen(
         currentInput = next
 
         if (next.length == 4) {
-            when (mode) {
-                PinMode.SETUP -> {
-                    if (setupStep == 1) {
-                        firstPin = next
-                        currentInput = ""
-                        setupStep = 2
-                    } else {
-                        // Confirm step
-                        if (next == firstPin) {
-                            onPinSuccess(next)
+            scope.launch {
+                kotlinx.coroutines.delay(80) // Allow UI to render 4th dot smoothly
+                when (mode) {
+                    PinMode.SETUP -> {
+                        if (setupStep == 1) {
+                            firstPin = next
+                            currentInput = ""
+                            setupStep = 2
                         } else {
-                            triggerShakeAndError("PINs do not match. Start over.")
-                            setupStep = 1
-                            firstPin = ""
+                            // Confirm step
+                            if (next == firstPin) {
+                                onPinSuccess(next)
+                            } else {
+                                triggerShakeAndError("PINs do not match. Start over.")
+                                setupStep = 1
+                                firstPin = ""
+                            }
                         }
                     }
-                }
-                PinMode.UNLOCK -> {
-                    if (storedPin != null && next == storedPin) {
-                        onPinSuccess(next)
-                    } else {
-                        triggerShakeAndError("Incorrect PIN! Please try again.")
+                    PinMode.UNLOCK -> {
+                        if (storedPin != null && next == storedPin) {
+                            onPinSuccess(next)
+                        } else {
+                            triggerShakeAndError("Incorrect PIN! Please try again.")
+                        }
                     }
                 }
             }

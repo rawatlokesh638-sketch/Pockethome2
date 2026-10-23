@@ -433,6 +433,30 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         )
     }
 
+    private fun getIsoDateStr(tx: Transaction): String {
+        val sdfDate = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+        if (tx.date.isNotBlank()) {
+            if (tx.date.matches(Regex("\\d{4}-\\d{2}-\\d{2}.*"))) {
+                return tx.date.take(10)
+            }
+            try {
+                val parsed = listOf(
+                    SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()),
+                    SimpleDateFormat("d MMM yyyy", Locale.getDefault()),
+                    SimpleDateFormat("dd-MM-yyyy", Locale.getDefault())
+                ).firstNotNullOfOrNull {
+                    try { it.parse(tx.date) } catch (e: Exception) { null }
+                }
+                if (parsed != null) {
+                    return sdfDate.format(parsed)
+                }
+            } catch (e: Exception) {
+                // ignore
+            }
+        }
+        return sdfDate.format(Date(tx.timestamp))
+    }
+
     fun getChartData(timeframe: ChartTimeframe): List<ChartBarData> {
         val all = _transactions.value.filter { it.isExpense() }
         val sdfDate = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
@@ -447,10 +471,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                     val c = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -i) }
                     val dStr = sdfDate.format(c.time)
                     val lbl = dayFormat.format(c.time)
-                    val sum = all.filter {
-                        val effDate = if (it.date.isNotBlank()) it.date.take(10) else sdfDate.format(Date(it.timestamp))
-                        effDate == dStr
-                    }.sumOf { it.amount }
+                    val sum = all.filter { getIsoDateStr(it) == dStr }.sumOf { it.amount }
                     days.add(ChartBarData(label = lbl, amount = sum, isHighlighted = (dStr == todayStr)))
                 }
                 days
@@ -465,8 +486,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                     val sDate = sdfDate.format(cStart.time)
                     val eDate = sdfDate.format(cEnd.time)
                     val sum = all.filter {
-                        val effDate = if (it.date.isNotBlank()) it.date.take(10) else sdfDate.format(Date(it.timestamp))
-                        effDate in sDate..eDate
+                        getIsoDateStr(it) in sDate..eDate
                     }.sumOf { it.amount }
                     weeks.add(ChartBarData(label = "Wk $w", amount = sum, isHighlighted = (w == 1)))
                 }
@@ -482,8 +502,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                     val mKey = SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(c.time)
                     val mLbl = monthLabelFormat.format(c.time)
                     val sum = all.filter {
-                        val effMonth = if (it.date.length >= 7) it.date.take(7) else SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(Date(it.timestamp))
-                        effMonth == mKey
+                        getIsoDateStr(it).take(7) == mKey
                     }.sumOf { it.amount }
                     months.add(ChartBarData(label = mLbl, amount = sum, isHighlighted = (mKey == currentMonthKey)))
                 }
@@ -568,7 +587,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         val categoryCountMap = mutableMapOf<String, Int>()
 
         for (tx in allTransactions) {
-            val txEffectiveDate = if (tx.date.isNotBlank()) tx.date else SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(tx.timestamp))
+            val txEffectiveDate = getIsoDateStr(tx)
             val isCurrentPeriod = when (filters.homeTimeframe) {
                 HomeTimeframe.THIS_MONTH -> txEffectiveDate.startsWith(currentMonthStr)
                 HomeTimeframe.THIS_YEAR -> txEffectiveDate.startsWith(currentYearStr)
@@ -668,12 +687,15 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         )
 
         val savingsRatio = if (incomeCurrent > 0) (remainingBalance / incomeCurrent).coerceIn(0.0, 1.0) else 0.0
-        val budgetHealth = if (monthlyBudgetAmount > 0) (1.0 - (expensesCurrent / monthlyBudgetAmount).coerceIn(0.0, 1.0)) else 0.5
-        val rawHealthScore = (savingsRatio * 60.0) + (budgetHealth * 40.0)
-        val healthScoreInt = Math.round(rawHealthScore).toInt().coerceIn(10, 100)
-        val transactionBonus = (allTransactions.size * 20).coerceAtMost(400)
-        val savingsBonus = Math.round(savingsRatio * 500.0).toInt()
-        val computedXp = (healthScoreInt * 40) + transactionBonus + savingsBonus
+        val budgetHealth = if (monthlyBudgetAmount > 0) (1.0 - (expensesCurrent / monthlyBudgetAmount).coerceIn(0.0, 1.0)) else 0.0
+        val rawHealthScore = if (allTransactions.isEmpty()) 50.0 else ((savingsRatio * 60.0) + (budgetHealth * 40.0)).coerceIn(10.0, 100.0)
+        val healthScoreInt = Math.round(rawHealthScore).toInt()
+
+        val computedXp = if (allTransactions.isEmpty()) {
+            0
+        } else {
+            allTransactions.size * 5
+        }
         val computedTier = com.example.model.UserLevelTier.getTierForXp(computedXp)
 
         val userNameVal = Firebase.auth.currentUser?.displayName?.ifEmpty { _localUserName.value } ?: _localUserName.value.ifEmpty { "User" }
@@ -750,29 +772,39 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         if (text.isBlank() || _isAiGenerating.value) return
         val uid = _activeUserId.value
 
-        // Check and deduct AI credit (1 credit per chat)
-        val currentCredits = repository.getAiCredits(uid)
-        if (currentCredits <= 0) {
+        // Check 20,000 monthly AI tokens limit
+        val currentTokensLeft = repository.getAiCredits(uid)
+        if (currentTokensLeft <= 0) {
             val userMessage = com.example.model.AiChatMessage(sender = "USER", text = text)
             repository.saveChatMessage(uid, userMessage)
-            val noCreditMessage = com.example.model.AiChatMessage(
+            val limitMessage = com.example.model.AiChatMessage(
                 sender = "AI",
-                text = "🪙 Aapke paas AI Credits khatam ho gaye hain (0/100). Agle billing cycle ya recharge par 100 naye credits milenge."
+                text = "🚫 Aapka 20,000 Monthly AI Tokens quota poora ho chuka hai (0/20,000 Left). Ab AI aur responses nahi de sakta. Agle billing cycle me 20,000 naye tokens milenge."
             )
-            repository.saveChatMessage(uid, noCreditMessage)
+            repository.saveChatMessage(uid, limitMessage)
             return
         }
 
-        repository.deductAiCredit(uid)
         val userMessage = com.example.model.AiChatMessage(sender = "USER", text = text)
         repository.saveChatMessage(uid, userMessage)
+
+        val aiMsgPlaceholder = com.example.model.AiChatMessage(sender = "AI", text = "...")
+        repository.saveChatMessage(uid, aiMsgPlaceholder)
 
         _isAiGenerating.value = true
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             try {
-                val rawKey = BuildConfig.GEMINI_API_KEY.trim()
-                val apiKey = if (rawKey.isNotBlank() && !rawKey.contains("placeholder", ignoreCase = true)) rawKey else ""
+                val envKey = try { System.getenv("GEMINI_API_KEY") ?: "" } catch (e: Throwable) { "" }
+                val buildEnvKey = try { BuildConfig.GEMINI_API_KEY_ENV } catch (e: Throwable) { "" }
+                val buildConfigKey = try { BuildConfig.GEMINI_API_KEY } catch (e: Throwable) { "" }
+                val rawKey = listOf(envKey, buildEnvKey, buildConfigKey).firstOrNull {
+                    it.isNotBlank() && !it.contains("placeholder", ignoreCase = true)
+                }?.trim()?.trim('"') ?: ""
+
+                val apiKey = rawKey
                 var replySuccess = false
+                var finalResponseText = ""
+                var realApiTokenCount: Int? = null
 
                 if (apiKey.isNotBlank()) {
                     try {
@@ -788,19 +820,21 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                         val systemInstruction = com.example.service.SystemInstruction(
                             parts = listOf(
                                 com.example.service.Part(
-                                    text = "You are Pockethome AI, a friendly, intelligent personal financial advisor for Indian households. " +
-                                           "Always provide helpful, encouraging, and accurate advice in Hinglish or English. " +
+                                    text = "You are Pockethome AI, a friendly, intelligent personal financial assistant for Indian users. " +
+                                           "STRICT FORMATTING & BREVITY RULES:\n" +
+                                           "1. Match user's message length: If user sends a simple short greeting like 'hi', 'hello', 'hey', 'namaste', or 'kaise ho', reply with ONLY a concise 1-2 sentence warm greeting with emojis.\n" +
+                                           "2. Respond in clean ChatGPT conversational style using friendly emojis and line breaks.\n" +
+                                           "3. DO NOT use raw markdown syntax like asterisks (*), double asterisks (**), or hash signs (#).\n" +
                                            "Live User Financial Context:\n" +
                                            "• Monthly Income: $formattedIncome\n" +
                                            "• Monthly Expense: $formattedExpense\n" +
-                                           "• Monthly Savings/Balance: $formattedBalance\n" +
-                                           "• Monthly Budget: $formattedBudget\n" +
-                                           "Give specific guidance on budgeting, SIP investments, expense reduction, emergency funds, and wealth growth."
+                                           "• Monthly Balance: $formattedBalance\n" +
+                                           "• Monthly Budget: $formattedBudget"
                                 )
                             )
                         )
 
-                        val historyList = chatMessages.value.takeLast(6).map { msg ->
+                        val historyList = chatMessages.value.filter { it.id != aiMsgPlaceholder.id }.takeLast(6).map { msg ->
                             com.example.service.Content(
                                 parts = listOf(com.example.service.Part(text = msg.text)),
                                 role = if (msg.sender == "USER") "user" else "model"
@@ -817,7 +851,6 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                             systemInstruction = systemInstruction
                         )
 
-                        var aiResponseText: String? = null
                         val modelsToTry = listOf(
                             "gemini-2.5-flash",
                             "gemini-3.1-flash-lite-preview",
@@ -826,24 +859,63 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                             "gemini-3.8-flash"
                         )
 
+                        val moshi = com.squareup.moshi.Moshi.Builder()
+                            .add(com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory())
+                            .build()
+                        val adapter = moshi.adapter(com.example.service.GenerateContentResponse::class.java)
+
                         for (model in modelsToTry) {
                             try {
-                                val response = com.example.service.GeminiService.api.generateContentForModel(model, apiKey, request)
-                                val textResult = response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
-                                if (!textResult.isNullOrBlank()) {
-                                    aiResponseText = textResult
-                                    android.util.Log.d("DashboardViewModel", "Gemini response received using model: $model")
+                                val streamResponseBody = com.example.service.GeminiService.api.generateContentStreamForModel(model, apiKey, request)
+                                var accumulatedText = ""
+                                streamResponseBody.byteStream().bufferedReader().use { reader ->
+                                    var line: String?
+                                    while (reader.readLine().also { line = it } != null) {
+                                        val rawLine = line?.trim() ?: continue
+                                        if (!rawLine.startsWith("data:")) continue
+                                        val jsonPayload = rawLine.removePrefix("data:").trim()
+                                        if (jsonPayload.isEmpty() || jsonPayload == "[DONE]") continue
+                                        try {
+                                            val chunk = adapter.fromJson(jsonPayload)
+                                            chunk?.usageMetadata?.totalTokenCount?.let { count ->
+                                                if (count > 0) realApiTokenCount = count
+                                            }
+                                            val chunkText = chunk?.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
+                                            if (!chunkText.isNullOrEmpty()) {
+                                                accumulatedText += chunkText
+                                                repository.updateChatMessageText(uid, aiMsgPlaceholder.id, accumulatedText)
+                                            }
+                                        } catch (eChunk: Exception) {
+                                            // ignore frame parse glitch
+                                        }
+                                    }
+                                }
+
+                                if (accumulatedText.isNotBlank()) {
+                                    replySuccess = true
+                                    finalResponseText = accumulatedText
+                                    android.util.Log.d("DashboardViewModel", "Gemini stream success using model: $model, tokens: $realApiTokenCount")
                                     break
                                 }
                             } catch (modelErr: Exception) {
-                                android.util.Log.w("DashboardViewModel", "Model $model failed: ${modelErr.message}, trying next fallback...")
+                                android.util.Log.w("DashboardViewModel", "Stream model $model failed: ${modelErr.message}, trying next model...")
+                                // Non-streamed fallback for this model
+                                try {
+                                    val response = com.example.service.GeminiService.api.generateContentForModel(model, apiKey, request)
+                                    response.usageMetadata?.totalTokenCount?.let { count ->
+                                        if (count > 0) realApiTokenCount = count
+                                    }
+                                    val textResult = response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
+                                    if (!textResult.isNullOrBlank()) {
+                                        finalResponseText = textResult.trim()
+                                        repository.updateChatMessageText(uid, aiMsgPlaceholder.id, finalResponseText)
+                                        replySuccess = true
+                                        break
+                                    }
+                                } catch (eNonStream: Exception) {
+                                    // continue to next model
+                                }
                             }
-                        }
-
-                        if (!aiResponseText.isNullOrBlank()) {
-                            val aiMessage = com.example.model.AiChatMessage(sender = "AI", text = aiResponseText.trim())
-                            repository.saveChatMessage(uid, aiMessage)
-                            replySuccess = true
                         }
                     } catch (netErr: Exception) {
                         android.util.Log.e("DashboardViewModel", "Gemini API call failed: ${netErr.message}")
@@ -851,21 +923,50 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                 }
 
                 if (!replySuccess) {
-                    val offlineHeader = if (apiKey.isBlank()) {
-                        "🔑 *Gemini API Key Required*\nAI Studio Secrets Panel ya GitHub Secrets me `GEMINI_API_KEY` set karein taaki real-time Gemini AI se responses mil sakein.\n\n"
-                    } else ""
-                    val fallbackText = offlineHeader + generateFinancialAdvisorReply(text)
-                    val aiMessage = com.example.model.AiChatMessage(sender = "AI", text = fallbackText)
-                    repository.saveChatMessage(uid, aiMessage)
+                    finalResponseText = generateFinancialAdvisorReply(text)
+                    repository.updateChatMessageText(uid, aiMsgPlaceholder.id, finalResponseText)
                 }
+
+                // Calculate & Deduct Monthly AI Tokens consumed
+                val totalTokensConsumed = realApiTokenCount ?: run {
+                    val promptWords = text.trim().split(Regex("\\s+")).filter { it.isNotBlank() }.size
+                    val promptTokens = (promptWords * 1.33).toInt().coerceAtLeast((text.length / 3.0).toInt()).coerceAtLeast(10)
+
+                    val responseWords = finalResponseText.trim().split(Regex("\\s+")).filter { it.isNotBlank() }.size
+                    val responseTokens = (responseWords * 1.33).toInt().coerceAtLeast((finalResponseText.length / 3.0).toInt()).coerceAtLeast(15)
+
+                    promptTokens + responseTokens
+                }
+
+                repository.deductAiTokens(uid, totalTokensConsumed)
+
             } catch (e: Exception) {
                 val fallbackText = generateFinancialAdvisorReply(text)
-                val aiMessage = com.example.model.AiChatMessage(sender = "AI", text = fallbackText)
-                repository.saveChatMessage(uid, aiMessage)
+                repository.updateChatMessageText(uid, aiMsgPlaceholder.id, fallbackText)
+                repository.deductAiTokens(uid, 50)
             } finally {
                 _isAiGenerating.value = false
             }
         }
+    }
+
+    val chatSessions = repository.chatSessions
+    val activeSessionId = repository.activeSessionId
+
+    fun createNewChatSession() {
+        repository.createNewChatSession(_activeUserId.value)
+    }
+
+    fun selectChatSession(sessionId: String) {
+        repository.selectChatSession(_activeUserId.value, sessionId)
+    }
+
+    fun deleteChatSession(sessionId: String) {
+        repository.deleteChatSession(_activeUserId.value, sessionId)
+    }
+
+    fun clearChatHistory() {
+        repository.clearChatHistory(_activeUserId.value)
     }
 
     private fun generateFinancialAdvisorReply(query: String): String {
@@ -878,18 +979,8 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         val formattedBalance = formatCurrency(balance)
 
         return when {
-            q in listOf("hi", "hello", "hey", "hii", "namaste", "pranam", "kaise ho", "help") || q.startsWith("hi ") || q.startsWith("hello ") -> {
-                "Namaste! 🙏 Main aapka Pockethome AI Financial Advisor hoon.\n\n" +
-                "Mera kaam aapke ghar ke kharche track karna, monthly bachat badhana aur smart investments suggest karna hai.\n\n" +
-                "📊 Aapka Current Month Status:\n" +
-                "• Monthly Aay (Income): $formattedIncome\n" +
-                "• Monthly Kharcha (Expense): $formattedExpense\n" +
-                "• Bachat (Balance): $formattedBalance\n\n" +
-                "Aap mujhse pooch sakte hain:\n" +
-                "1. 'Bachat kaise badhayein?'\n" +
-                "2. 'SIP investment kahan karein?'\n" +
-                "3. '50/30/20 budget rule samjhao'\n" +
-                "4. 'Emergency fund kitna hona chahiye?'"
+            q in listOf("hi", "hello", "hey", "hii", "namaste", "pranam", "kaise ho", "help") || q.startsWith("hi ") || q.startsWith("hello ") || q.startsWith("hey ") -> {
+                "Namaste! 🙏 Main Pockethome AI hoon. Aaj aapki finances me kya help karun? 😊"
             }
             q.contains("save") || q.contains("bachat") || q.contains("saving") || q.contains("bachao") -> {
                 val targetSavings = if (income > 0) formatCurrency(income * 0.20) else "₹3,000"

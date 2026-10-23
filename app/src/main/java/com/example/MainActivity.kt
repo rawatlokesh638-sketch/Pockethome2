@@ -47,10 +47,10 @@ class MainActivity : ComponentActivity() {
                         com.example.ui.screens.PinScreen(
                             mode = com.example.ui.screens.PinMode.SETUP,
                             onPinSuccess = { pin ->
-                                lifecycleScope.launch {
+                                pinSet = pin
+                                isAuthenticated = true
+                                lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
                                     securityManager.setPin(pin)
-                                    pinSet = pin
-                                    isAuthenticated = true
                                 }
                             },
                             onSkipSetup = {

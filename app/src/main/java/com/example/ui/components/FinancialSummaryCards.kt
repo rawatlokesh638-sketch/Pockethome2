@@ -241,14 +241,16 @@ private fun SummaryCard(
 
             Spacer(modifier = Modifier.height(6.dp))
 
-            Text(
-                text = DashboardViewModel.formatCurrency(amount),
-                style = MaterialTheme.typography.titleLarge.copy(
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 19.sp
-                ),
-                color = MaterialTheme.colorScheme.onSurface
-            )
+            AnimatedContent(targetState = amount, label = "amount_anim") { animAmount ->
+                Text(
+                    text = DashboardViewModel.formatCurrency(animAmount),
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 19.sp
+                    ),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
 
             Spacer(modifier = Modifier.height(2.dp))
 

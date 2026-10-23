@@ -40,8 +40,16 @@ data class Candidate(
 )
 
 @JsonClass(generateAdapter = true)
+data class UsageMetadata(
+    val promptTokenCount: Int? = null,
+    val candidatesTokenCount: Int? = null,
+    val totalTokenCount: Int? = null
+)
+
+@JsonClass(generateAdapter = true)
 data class GenerateContentResponse(
-    val candidates: List<Candidate>? = null
+    val candidates: List<Candidate>? = null,
+    val usageMetadata: UsageMetadata? = null
 )
 
 interface GeminiApiService {
@@ -57,6 +65,14 @@ interface GeminiApiService {
         @Query("key") apiKey: String,
         @Body request: GenerateContentRequest
     ): GenerateContentResponse
+
+    @POST("v1beta/models/{modelPath}:streamGenerateContent?alt=sse")
+    @retrofit2.http.Streaming
+    suspend fun generateContentStreamForModel(
+        @retrofit2.http.Path("modelPath") modelPath: String,
+        @Query("key") apiKey: String,
+        @Body request: GenerateContentRequest
+    ): okhttp3.ResponseBody
 }
 
 object GeminiService {
