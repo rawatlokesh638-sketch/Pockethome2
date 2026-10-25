@@ -67,6 +67,8 @@ jobs:
           fi
 
       - name: Build Debug APK with Gradle
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           PROJECT_DIR="${{ steps.locate_dir.outputs.project_dir }}"
           cd "$PROJECT_DIR"
