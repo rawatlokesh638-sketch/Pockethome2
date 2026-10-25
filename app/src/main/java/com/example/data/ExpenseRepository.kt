@@ -280,6 +280,14 @@ class ExpenseRepository(private val context: Context) {
         }
     }
 
+    fun getCustomApiKey(): String {
+        return prefs.getString("custom_gemini_api_key", "") ?: ""
+    }
+
+    fun saveCustomApiKey(key: String) {
+        prefs.edit().putString("custom_gemini_api_key", key.trim()).apply()
+    }
+
     fun isProActive(userId: String = ""): Boolean {
         val targetId = userId.ifEmpty { getActiveUserId() }
         val ps = _localProStatus.value

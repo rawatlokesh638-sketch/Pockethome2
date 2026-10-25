@@ -430,26 +430,52 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
 
     private fun getIsoDateStr(tx: Transaction): String {
         val sdfDate = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+        val nowIso = sdfDate.format(Date())
+
         if (tx.date.isNotBlank()) {
-            if (tx.date.matches(Regex("\\d{4}-\\d{2}-\\d{2}.*"))) {
-                return tx.date.take(10)
+            val trimmed = tx.date.trim()
+            if (trimmed.matches(Regex("\\d{4}-\\d{2}-\\d{2}.*"))) {
+                return trimmed.take(10)
             }
-            try {
-                val parsed = listOf(
-                    SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()),
-                    SimpleDateFormat("d MMM yyyy", Locale.getDefault()),
-                    SimpleDateFormat("dd-MM-yyyy", Locale.getDefault())
-                ).firstNotNullOfOrNull {
-                    try { it.parse(tx.date) } catch (e: Exception) { null }
+            if (trimmed.equals("Today", ignoreCase = true) || trimmed.equals("Aaj", ignoreCase = true)) {
+                return nowIso
+            }
+            if (trimmed.equals("Yesterday", ignoreCase = true) || trimmed.equals("Kal", ignoreCase = true)) {
+                val yCal = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -1) }
+                return sdfDate.format(yCal.time)
+            }
+
+            val formats = listOf(
+                SimpleDateFormat("dd/MM/yyyy", Locale.ENGLISH),
+                SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()),
+                SimpleDateFormat("MM/dd/yyyy", Locale.ENGLISH),
+                SimpleDateFormat("dd-MM-yyyy", Locale.ENGLISH),
+                SimpleDateFormat("d MMM yyyy", Locale.ENGLISH),
+                SimpleDateFormat("d MMM yyyy", Locale.getDefault()),
+                SimpleDateFormat("dd MMM yyyy", Locale.ENGLISH),
+                SimpleDateFormat("d MMMM yyyy", Locale.ENGLISH),
+                SimpleDateFormat("MMM d, yyyy", Locale.ENGLISH),
+                SimpleDateFormat("MMMM d, yyyy", Locale.ENGLISH),
+                SimpleDateFormat("yyyy/MM/dd", Locale.ENGLISH)
+            )
+
+            for (fmt in formats) {
+                try {
+                    val parsed = fmt.parse(trimmed)
+                    if (parsed != null) {
+                        return sdfDate.format(parsed)
+                    }
+                } catch (e: Exception) {
+                    // ignore
                 }
-                if (parsed != null) {
-                    return sdfDate.format(parsed)
-                }
-            } catch (e: Exception) {
-                // ignore
             }
         }
-        return sdfDate.format(Date(tx.timestamp))
+
+        if (tx.timestamp > 1000000000000L) {
+            return sdfDate.format(Date(tx.timestamp))
+        }
+
+        return nowIso
     }
 
     fun getChartData(timeframe: ChartTimeframe): List<ChartBarData> {
@@ -778,9 +804,16 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
 
     private data class Quad<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
 
+    fun getCustomApiKey(): String = repository.getCustomApiKey()
+
+    fun saveCustomApiKey(key: String) {
+        repository.saveCustomApiKey(key)
+    }
+
     fun sendMessageToAi(text: String) {
         if (text.isBlank() || _isAiGenerating.value) return
         val uid = _activeUserId.value
+        val trimmedText = text.trim()
 
         // Check 20,000 monthly AI tokens limit
         val currentTokensLeft = repository.getAiCredits(uid)
@@ -804,14 +837,31 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         _isAiGenerating.value = true
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             try {
-                val envKey = try { System.getenv("GEMINI_API_KEY") ?: "" } catch (e: Throwable) { "" }
+                val customKey = repository.getCustomApiKey()
+                val envKey = try {
+                    System.getenv("GEMINI_API_KEY")
+                        ?: System.getenv("Gemini_api_key")
+                        ?: System.getenv("gemini_api_key")
+                        ?: ""
+                } catch (e: Throwable) { "" }
                 val buildEnvKey = try { BuildConfig.GEMINI_API_KEY_ENV } catch (e: Throwable) { "" }
                 val buildConfigKey = try { BuildConfig.GEMINI_API_KEY } catch (e: Throwable) { "" }
-                val rawKey = listOf(envKey, buildEnvKey, buildConfigKey).firstOrNull {
-                    it.isNotBlank() && !it.contains("placeholder", ignoreCase = true)
+                val rawKey = listOf(customKey, envKey, buildEnvKey, buildConfigKey).firstOrNull {
+                    it.isNotBlank() &&
+                        !it.contains("placeholder", ignoreCase = true) &&
+                        !it.contains("default_value", ignoreCase = true)
                 }?.trim()?.trim('"') ?: ""
 
                 val apiKey = rawKey
+                if (apiKey.isBlank()) {
+                    repository.updateChatMessageText(
+                        uid,
+                        aiMsgPlaceholder.id,
+                        "⚠️ Gemini API Key configured nahi hai.\n\nDeveloper ko Google AI Studio ke Secrets panel me 'GEMINI_API_KEY' set karni hogi."
+                    )
+                    _isAiGenerating.value = false
+                    return@launch
+                }
                 var replySuccess = false
                 var finalResponseText = ""
                 var realApiTokenCount: Int? = null
@@ -862,11 +912,10 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                         )
 
                         val modelsToTry = listOf(
-                            "gemini-2.5-flash",
-                            "gemini-3.1-flash-lite-preview",
                             "gemini-3.5-flash",
-                            "gemini-3.6-flash",
-                            "gemini-3.8-flash"
+                            "gemini-3.1-flash-lite-preview",
+                            "gemini-flash-latest",
+                            "gemini-2.5-flash"
                         )
 
                         val moshi = com.squareup.moshi.Moshi.Builder()

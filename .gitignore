@@ -9,3 +9,5 @@
 .externalNativeBuild
 .cxx
 *.apk.tmp
+.env
+/app/.env
