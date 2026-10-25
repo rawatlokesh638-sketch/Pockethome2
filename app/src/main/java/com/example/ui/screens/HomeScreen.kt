@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.Sms
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.TrackChanges
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.*
@@ -65,8 +66,10 @@ import com.example.ui.components.SpendingTrendChart
 import com.example.ui.components.UpcomingBillsSection
 import com.example.ui.theme.BalanceBlue
 import com.example.ui.theme.BrandOrange
+import com.example.ui.theme.EmeraldPrimary
 import com.example.ui.theme.MoneyGreen
 import com.example.ui.theme.PurpleAccent
+import com.example.ui.theme.RosePrimary
 import com.example.ui.theme.RoyalBlue
 import com.google.firebase.Firebase
 import com.google.firebase.auth.auth
@@ -78,6 +81,8 @@ fun HomeScreen(
     chartData: List<ChartBarData>,
     currentChartTimeframe: ChartTimeframe,
     onChartTimeframeChanged: (ChartTimeframe) -> Unit,
+    currentChartDataType: com.example.ui.ChartDataType = com.example.ui.ChartDataType.EXPENSE,
+    onChartDataTypeChanged: (com.example.ui.ChartDataType) -> Unit = {},
     onTimeframeChanged: (HomeTimeframe) -> Unit,
     onAddExpenseClicked: () -> Unit,
     onAddIncomeClicked: () -> Unit,
@@ -88,10 +93,12 @@ fun HomeScreen(
     onOpenProSheet: () -> Unit,
     onRequestSmsPermissions: () -> Unit,
     onTransactionClicked: (Transaction) -> Unit,
+    onToggleTransactionType: (String) -> Unit = {},
     onToggleBillPaid: (String, Boolean) -> Unit,
     onDeleteBill: (String) -> Unit,
     onOpenAiGrowthAdvisor: () -> Unit = {},
     onOpenSmartAdd: () -> Unit = {},
+    onOpenPrivacyPolicy: () -> Unit = {},
     onLogout: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -327,14 +334,25 @@ fun HomeScreen(
             SpendingTrendChart(
                 chartData = chartData,
                 currentTimeframe = currentChartTimeframe,
-                onTimeframeSelected = onChartTimeframeChanged
+                onTimeframeSelected = onChartTimeframeChanged,
+                currentDataType = currentChartDataType,
+                onDataTypeSelected = onChartDataTypeChanged,
+                totalTransactionsCount = uiState.totalTransactionCount,
+                incomeTransactionCount = uiState.incomeTransactionCount,
+                expenseTransactionCount = uiState.expenseTransactionCount,
+                onAddExpenseClicked = onAddExpenseClicked
             )
         }
 
         // 8. Category-wise Spending Breakdown
         item(key = "category_breakdown") {
             CategoryBreakdownSection(
-                breakdown = uiState.categoryBreakdown
+                breakdown = uiState.categoryBreakdown,
+                incomeBreakdown = uiState.incomeCategoryBreakdown,
+                allTimeBreakdown = uiState.allTimeCategoryBreakdown,
+                incomeCount = uiState.incomeTransactionCount,
+                expenseCount = uiState.expenseTransactionCount,
+                onViewTransactionsClicked = onViewAllTransactions
             )
         }
 
@@ -431,7 +449,8 @@ fun HomeScreen(
             items(uiState.recentTransactions, key = { it.id }) { tx ->
                 TransactionRowItem(
                     transaction = tx,
-                    onClick = { onTransactionClicked(tx) }
+                    onClick = { onTransactionClicked(tx) },
+                    onToggleType = { onToggleTransactionType(tx.id) }
                 )
             }
         }
@@ -458,6 +477,58 @@ fun HomeScreen(
                     Text(
                         text = "Reset All Data to 0 (Sara Data 0 Karein)",
                         style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold)
+                    )
+                }
+            }
+        }
+
+        // 13. Privacy & Terms Footer Card with Zero Sharing Promise & Support Email
+        item(key = "privacy_terms_footer") {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 8.dp)
+                    .clickable(onClick = onOpenPrivacyPolicy),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)),
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Lock,
+                            contentDescription = null,
+                            tint = EmeraldPrimary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "100% Private & Secure • Zero Data Sharing",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            color = EmeraldPrimary
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Ham aapka data kisi third party ke sath share nahi karte. Safe on-device analysis.",
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "Help Support: rawatlokesh638@gmail.com • Terms & Privacy 📜",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        color = RoyalBlue,
+                        textAlign = TextAlign.Center
                     )
                 }
             }
@@ -804,7 +875,7 @@ private fun QuickActionsGrid(
         QuickActionButton(
             label = "Add Expense",
             icon = Icons.Default.Add,
-            bgColor = MoneyGreen,
+            bgColor = RosePrimary,
             onClick = onAddExpense,
             modifier = Modifier.weight(1f)
         )
@@ -812,7 +883,7 @@ private fun QuickActionsGrid(
         QuickActionButton(
             label = "Add Income",
             icon = Icons.Default.Description,
-            bgColor = BalanceBlue,
+            bgColor = EmeraldPrimary,
             onClick = onAddIncome,
             modifier = Modifier.weight(1f)
         )
@@ -881,7 +952,8 @@ private fun QuickActionButton(
 @Composable
 private fun TransactionRowItem(
     transaction: Transaction,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onToggleType: () -> Unit = {}
 ) {
     val catInfo = ExpenseCategories.getCategoryInfo(transaction.category)
     val isExpense = transaction.isExpense()
@@ -946,15 +1018,39 @@ private fun TransactionRowItem(
                 }
             }
 
-            val prefix = if (isExpense) "" else "+"
-            val color = if (isExpense) MaterialTheme.colorScheme.onSurface else MoneyGreen
-            Text(
-                text = "$prefix${DashboardViewModel.formatCurrency(transaction.amount)}",
-                style = MaterialTheme.typography.bodyLarge.copy(
-                    fontWeight = FontWeight.Bold,
-                    color = color
-                )
-            )
+            val prefix = if (isExpense) "- " else "+ "
+            val color = if (isExpense) RosePrimary else EmeraldPrimary
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = if (isExpense) RosePrimary.copy(alpha = 0.12f) else EmeraldPrimary.copy(alpha = 0.12f)
+                ) {
+                    Text(
+                        text = "$prefix${DashboardViewModel.formatCurrency(transaction.amount)}",
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = color
+                        )
+                    )
+                }
+
+                IconButton(
+                    onClick = onToggleType,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.SwapHoriz,
+                        contentDescription = "Toggle Expense/Income",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
         }
     }
 }

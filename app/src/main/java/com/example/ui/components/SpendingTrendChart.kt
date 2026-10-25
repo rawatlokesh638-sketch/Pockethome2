@@ -4,23 +4,13 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -30,8 +20,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.ui.ChartDataType
 import com.example.ui.DashboardViewModel
 import com.example.ui.theme.EmeraldPrimary
+import com.example.ui.theme.RosePrimary
+import com.example.ui.theme.RoyalBlue
 
 data class ChartBarData(
     val label: String,
@@ -48,9 +41,16 @@ fun SpendingTrendChart(
     chartData: List<ChartBarData>,
     currentTimeframe: ChartTimeframe,
     onTimeframeSelected: (ChartTimeframe) -> Unit,
+    currentDataType: ChartDataType = ChartDataType.EXPENSE,
+    onDataTypeSelected: (ChartDataType) -> Unit = {},
+    totalTransactionsCount: Int = 0,
+    incomeTransactionCount: Int = 0,
+    expenseTransactionCount: Int = 0,
+    onAddExpenseClicked: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val maxAmount = chartData.maxOfOrNull { it.amount }?.coerceAtLeast(100.0) ?: 100.0
+    val isIncomeMode = currentDataType == ChartDataType.INCOME
 
     Card(
         modifier = modifier
@@ -68,7 +68,7 @@ fun SpendingTrendChart(
                 .fillMaxWidth()
                 .padding(18.dp)
         ) {
-            // Header Row with Timeframe Selector
+            // Header Row: Title & Timeframe Selector
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -76,18 +76,18 @@ fun SpendingTrendChart(
             ) {
                 Column {
                     Text(
-                        text = "Spending Overview",
+                        text = if (isIncomeMode) "Income Overview" else "Spending Overview",
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = "Kharcha Trend Analysis",
+                        text = if (isIncomeMode) "Kamai / Aay Trend Analysis" else "Kharcha Trend Analysis",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
 
-                // Timeframe Pill Selector
+                // Timeframe Pill Selector [Daily | Weekly | Monthly]
                 Row(
                     modifier = Modifier
                         .clip(RoundedCornerShape(20.dp))
@@ -112,7 +112,67 @@ fun SpendingTrendChart(
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Sub-bar: Type Selector [📉 Kharcha (Expense)] and [📈 Kamai (Income)]
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                val expenseCountLabel = if (expenseTransactionCount > 0) " ($expenseTransactionCount)" else ""
+                val incomeCountLabel = if (incomeTransactionCount > 0) " ($incomeTransactionCount)" else ""
+
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (!isIncomeMode) RosePrimary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        if (!isIncomeMode) RosePrimary else Color.Transparent
+                    ),
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { onDataTypeSelected(ChartDataType.EXPENSE) }
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = "📉 Kharcha$expenseCountLabel",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            color = if (!isIncomeMode) RosePrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (isIncomeMode) EmeraldPrimary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        if (isIncomeMode) EmeraldPrimary else Color.Transparent
+                    ),
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { onDataTypeSelected(ChartDataType.INCOME) }
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = "📈 Kamai$incomeCountLabel",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            color = if (isIncomeMode) EmeraldPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
 
             val hasAnySpending = chartData.any { it.amount > 0 }
 
@@ -120,7 +180,6 @@ fun SpendingTrendChart(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(140.dp)
                         .padding(vertical = 12.dp),
                     contentAlignment = Alignment.Center
                 ) {
@@ -129,17 +188,61 @@ fun SpendingTrendChart(
                         verticalArrangement = Arrangement.Center
                     ) {
                         Text(
-                            text = "No spending data for this period",
+                            text = if (isIncomeMode) "No income data for this period" else "No spending data for this period",
                             style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "Expenses add karne par spending trend analysis yahan dikhega.",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                            textAlign = TextAlign.Center
-                        )
+
+                        if (!isIncomeMode && incomeTransactionCount > 0) {
+                            Text(
+                                text = "Aapke paas $incomeTransactionCount Income (Kamai) transactions darz hain!",
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                                color = EmeraldPrimary,
+                                textAlign = TextAlign.Center
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            OutlinedButton(
+                                onClick = { onDataTypeSelected(ChartDataType.INCOME) },
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Icon(Icons.Default.SwapHoriz, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Kamai Chart Dekhein 📈", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold))
+                            }
+                        } else if (isIncomeMode && expenseTransactionCount > 0) {
+                            Text(
+                                text = "Aapke paas $expenseTransactionCount Kharcha transactions darz hain!",
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                                color = RosePrimary,
+                                textAlign = TextAlign.Center
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            OutlinedButton(
+                                onClick = { onDataTypeSelected(ChartDataType.EXPENSE) },
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Icon(Icons.Default.SwapHoriz, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Kharcha Chart Dekhein 📉", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold))
+                            }
+                        } else {
+                            Text(
+                                text = "Naya transaction jodne par trend analysis graph yahan dikhega.",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                textAlign = TextAlign.Center
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            FilledTonalButton(
+                                onClick = onAddExpenseClicked,
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Kharcha Jodein", style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
                     }
                 }
             } else {
@@ -160,10 +263,10 @@ fun SpendingTrendChart(
                             label = "barHeight_${bar.label}"
                         )
 
-                        val barColor = if (bar.isHighlighted) {
-                            EmeraldPrimary
+                        val barColor = if (isIncomeMode) {
+                            if (bar.isHighlighted) EmeraldPrimary else EmeraldPrimary.copy(alpha = 0.5f)
                         } else {
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                            if (bar.isHighlighted) RosePrimary else RoyalBlue.copy(alpha = 0.6f)
                         }
 
                         Column(
@@ -175,7 +278,7 @@ fun SpendingTrendChart(
                                 Text(
                                     text = formatShortAmount(bar.amount),
                                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
-                                    color = if (bar.isHighlighted) EmeraldPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    color = if (bar.isHighlighted) barColor else MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontWeight = if (bar.isHighlighted) FontWeight.Bold else FontWeight.Normal,
                                     textAlign = TextAlign.Center
                                 )
@@ -193,7 +296,7 @@ fun SpendingTrendChart(
                             Box(
                                 modifier = Modifier
                                     .fillMaxHeight(0.72f)
-                                    .width(if (chartData.size > 5) 20.dp else 28.dp),
+                                    .width(if (chartData.size > 5) 22.dp else 30.dp),
                                 contentAlignment = Alignment.BottomCenter
                             ) {
                                 // Background track

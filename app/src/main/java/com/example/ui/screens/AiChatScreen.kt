@@ -14,6 +14,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material3.*
@@ -283,14 +284,17 @@ fun AiChatScreen(
     }
 
     if (showHistorySheet) {
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         ModalBottomSheet(
             onDismissRequest = { showHistorySheet = false },
+            sheetState = sheetState,
             containerColor = MaterialTheme.colorScheme.surface
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(20.dp)
+                    .fillMaxHeight(0.88f)
+                    .padding(horizontal = 20.dp, vertical = 12.dp)
                     .navigationBarsPadding()
             ) {
                 Row(
@@ -301,13 +305,10 @@ fun AiChatScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.History, contentDescription = null, tint = RoyalBlue)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Chat History & Sessions 📜", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold))
+                        Text("Chat History & Past Sessions 📜", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold))
                     }
-                    IconButton(onClick = {
-                        onNewSession()
-                        showHistorySheet = false
-                    }) {
-                        Icon(Icons.Default.Add, contentDescription = "New", tint = RoyalBlue)
+                    IconButton(onClick = { showHistorySheet = false }) {
+                        Icon(Icons.Default.Close, contentDescription = "Close")
                     }
                 }
 
@@ -318,27 +319,31 @@ fun AiChatScreen(
                         onNewSession()
                         showHistorySheet = false
                     },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Start New Chat ➕", fontWeight = FontWeight.Bold)
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(20.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Start New Chat Session ➕", fontWeight = FontWeight.Bold)
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
                 if (chatSessions.isEmpty()) {
-                    Text("Koi purani chat history nahi mili.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                        Text("Koi purani chat history nahi mili.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 } else {
                     val sdf = remember { SimpleDateFormat("d MMM, hh:mm a", Locale.getDefault()) }
                     LazyColumn(
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
-                        modifier = Modifier.fillMaxWidth().heightIn(max = 350.dp)
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.fillMaxWidth().weight(1f)
                     ) {
-                        items(chatSessions) { session ->
+                        items(chatSessions, key = { it.id }) { session ->
                             val isActive = session.id == activeSessionId
+                            val lastMsgPreview = session.messages.lastOrNull()?.text?.let { sanitizeMarkdown(it).take(60) } ?: "Empty conversation"
+
                             Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -346,51 +351,74 @@ fun AiChatScreen(
                                         onSelectSession(session.id)
                                         showHistorySheet = false
                                     },
-                                shape = RoundedCornerShape(14.dp),
+                                shape = RoundedCornerShape(16.dp),
                                 colors = CardDefaults.cardColors(
                                     containerColor = if (isActive) RoyalBlue.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surfaceVariant
                                 ),
                                 border = if (isActive) androidx.compose.foundation.BorderStroke(1.5.dp, RoyalBlue) else null
                             ) {
-                                Row(
-                                    modifier = Modifier.padding(14.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
+                                Column(
+                                    modifier = Modifier.fillMaxWidth().padding(14.dp)
                                 ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = session.title,
-                                            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                        Spacer(modifier = Modifier.height(4.dp))
-                                        Text(
-                                            text = "${sdf.format(Date(session.timestamp))} • ${session.messages.size} messages",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        if (isActive) {
-                                            Surface(
-                                                color = RoyalBlue,
-                                                shape = RoundedCornerShape(8.dp)
-                                            ) {
-                                                Text("Active", style = MaterialTheme.typography.labelSmall, color = Color.White, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp))
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.weight(1f),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = session.title,
+                                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                                color = MaterialTheme.colorScheme.onSurface,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                modifier = Modifier.weight(1f, fill = false)
+                                            )
+                                            if (isActive) {
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Surface(
+                                                    color = RoyalBlue,
+                                                    shape = RoundedCornerShape(8.dp)
+                                                ) {
+                                                    Text("Active", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = Color.White, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp))
+                                                }
                                             }
-                                            Spacer(modifier = Modifier.width(8.dp))
                                         }
-                                        IconButton(onClick = { onDeleteSession(session.id) }) {
-                                            Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp))
+
+                                        IconButton(
+                                            onClick = { onDeleteSession(session.id) },
+                                            modifier = Modifier.size(32.dp)
+                                        ) {
+                                            Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
                                         }
                                     }
+
+                                    Spacer(modifier = Modifier.height(4.dp))
+
+                                    Text(
+                                        text = lastMsgPreview,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+
+                                    Spacer(modifier = Modifier.height(6.dp))
+
+                                    Text(
+                                        text = "${sdf.format(Date(session.timestamp))} • ${session.messages.size} messages",
+                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                                        color = RoyalBlue
+                                    )
                                 }
                             }
                         }
                     }
                 }
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(12.dp))
             }
         }
     }

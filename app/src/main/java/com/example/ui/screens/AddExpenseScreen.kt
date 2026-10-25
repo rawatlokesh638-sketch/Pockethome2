@@ -63,7 +63,9 @@ import androidx.compose.ui.unit.sp
 import com.example.model.ExpenseCategories
 import com.example.model.Transaction
 import com.example.ui.theme.BrandOrange
+import com.example.ui.theme.EmeraldPrimary
 import com.example.ui.theme.ExpenseRed
+import com.example.ui.theme.RosePrimary
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -77,6 +79,9 @@ fun AddExpenseScreen(
     onUpgradeClicked: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    var transactionType by remember {
+        mutableStateOf(editingTransaction?.type ?: Transaction.TYPE_EXPENSE)
+    }
     var amountText by remember {
         mutableStateOf(if (editingTransaction != null && editingTransaction.amount > 0) editingTransaction.amount.toInt().toString() else "")
     }
@@ -151,13 +156,65 @@ fun AddExpenseScreen(
                 }
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    text = if (editingTransaction != null) "Edit Expense" else "Add Expense",
+                    text = if (editingTransaction != null) "Edit Hisaab" else "Add Transaction",
                     style = MaterialTheme.typography.titleLarge.copy(
                         fontWeight = FontWeight.Bold,
                         fontSize = 20.sp
                     ),
                     color = MaterialTheme.colorScheme.onSurface
                 )
+            }
+
+            // Type Toggle: [ Expense (Kharcha) 💸 ]  [ Income (Kamai) 💰 ]
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                val isExp = transactionType == Transaction.TYPE_EXPENSE
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (isExp) RosePrimary else MaterialTheme.colorScheme.surfaceVariant,
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { transactionType = Transaction.TYPE_EXPENSE }
+                ) {
+                    Row(
+                        modifier = Modifier.padding(vertical = 10.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "💸 Kharcha (Expense)",
+                            fontWeight = FontWeight.Bold,
+                            color = if (isExp) Color.White else MaterialTheme.colorScheme.onSurface,
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+
+                val isInc = transactionType == Transaction.TYPE_INCOME
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (isInc) EmeraldPrimary else MaterialTheme.colorScheme.surfaceVariant,
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { transactionType = Transaction.TYPE_INCOME }
+                ) {
+                    Row(
+                        modifier = Modifier.padding(vertical = 10.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "💰 Kamai (Income)",
+                            fontWeight = FontWeight.Bold,
+                            color = if (isInc) Color.White else MaterialTheme.colorScheme.onSurface,
+                            fontSize = 12.sp
+                        )
+                    }
+                }
             }
 
             Column(
@@ -528,7 +585,7 @@ fun AddExpenseScreen(
                         val tx = (editingTransaction ?: Transaction()).copy(
                             title = finalTitle,
                             amount = amt,
-                            type = Transaction.TYPE_EXPENSE,
+                            type = transactionType,
                             category = selectedCategory,
                             paymentMethod = paymentMethod,
                             notes = notes.trim(),
@@ -547,10 +604,12 @@ fun AddExpenseScreen(
                         .height(52.dp)
                         .testTag("save_expense_main_button"),
                     shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = BrandOrange)
+                    colors = ButtonDefaults.buttonColors(containerColor = if (transactionType == Transaction.TYPE_EXPENSE) RosePrimary else EmeraldPrimary)
                 ) {
+                    val actionVerb = if (editingTransaction != null) "Update" else "Save"
+                    val typeLabel = if (transactionType == Transaction.TYPE_EXPENSE) "Kharcha (Expense)" else "Kamai (Income)"
                     Text(
-                        text = if (editingTransaction != null) "Update Expense" else "Save Expense",
+                        text = "$actionVerb $typeLabel",
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontWeight = FontWeight.Bold,
                             color = Color.White

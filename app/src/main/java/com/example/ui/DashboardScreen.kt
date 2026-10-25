@@ -52,6 +52,8 @@ fun DashboardScreen(
     var showAddBillSheet by remember { mutableStateOf(false) }
     var showEditBudgetDialog by remember { mutableStateOf(false) }
     var showProPlanSheet by remember { mutableStateOf(false) }
+    var showPrivacyPolicyDialog by remember { mutableStateOf(false) }
+    var showSmsDisclosureDialog by remember { mutableStateOf(false) }
     var currentChartTimeframe by remember { mutableStateOf(ChartTimeframe.DAILY) }
 
     // Runtime Permission Launcher for SMS
@@ -120,6 +122,8 @@ fun DashboardScreen(
                 LoginScreen(
                     onLogin = { e, p -> viewModel.login(email = e, pass = p) },
                     onNavigateToSignup = { viewModel.setAuthMode(AuthMode.SIGNUP) },
+                    onGoogleSignIn = { viewModel.signInWithGoogle(context) },
+                    onGuestLogin = { viewModel.loginAsGuest() },
                     isLoading = uiState.authLoading,
                     errorMessage = uiState.authError
                 )
@@ -128,6 +132,8 @@ fun DashboardScreen(
                 SignupScreen(
                     onSignup = { n, e, p -> viewModel.signup(name = n, email = e, pass = p) },
                     onNavigateToLogin = { viewModel.setAuthMode(AuthMode.LOGIN) },
+                    onGoogleSignIn = { viewModel.signInWithGoogle(context) },
+                    onGuestLogin = { viewModel.loginAsGuest() },
                     isLoading = uiState.authLoading,
                     errorMessage = uiState.authError
                 )
@@ -165,7 +171,8 @@ fun DashboardScreen(
                                     userTier = uiState.userTier,
                                     userXp = uiState.userXp,
                                     onTabSelected = { viewModel.selectTab(it) },
-                                    onOpenAiAdvisor = { showAiGrowthSheet = true }
+                                    onOpenAiAdvisor = { showAiGrowthSheet = true },
+                                    onOpenPrivacyPolicy = { showPrivacyPolicyDialog = true }
                                 )
                             }
                         },
@@ -173,8 +180,8 @@ fun DashboardScreen(
                             if (uiState.activeTab != AppTab.CHAT) {
                                 FloatingActionButton(
                                     onClick = { 
-                                        editingTransaction = null
-                                        showAddExpenseScreen = true 
+                                         editingTransaction = null
+                                         showAddExpenseScreen = true 
                                     },
                                     containerColor = com.example.ui.theme.RoyalBlue
                                 ) {
@@ -194,9 +201,11 @@ fun DashboardScreen(
                                         HomeScreen(
                                             uiState = uiState,
                                             proStatus = uiState.proStatus,
-                                            chartData = viewModel.getChartData(currentChartTimeframe),
+                                            chartData = viewModel.getChartData(currentChartTimeframe, uiState.selectedChartDataType),
                                             currentChartTimeframe = currentChartTimeframe,
                                             onChartTimeframeChanged = { currentChartTimeframe = it },
+                                            currentChartDataType = uiState.selectedChartDataType,
+                                            onChartDataTypeChanged = { viewModel.setChartDataType(it) },
                                             onTimeframeChanged = { viewModel.setHomeTimeframe(it) },
                                             onAddExpenseClicked = {
                                                 editingTransaction = null
@@ -214,16 +223,19 @@ fun DashboardScreen(
                                             },
                                             onOpenProSheet = { showProPlanSheet = true },
                                             onRequestSmsPermissions = {
-                                                permissionsLauncher.launch(
-                                                    arrayOf(
-                                                        Manifest.permission.READ_SMS,
-                                                        Manifest.permission.RECEIVE_SMS
-                                                    )
-                                                )
+                                                showSmsDisclosureDialog = true
                                             },
                                             onTransactionClicked = { tx ->
                                                 editingTransaction = tx
                                                 showAddExpenseScreen = true
+                                            },
+                                            onToggleTransactionType = { txId ->
+                                                viewModel.toggleTransactionType(txId) { updated ->
+                                                    scope.launch {
+                                                        val label = if (updated.isExpense()) "Kharcha (Expense) 📉" else "Kamai (Income) 📈"
+                                                        snackbarHostState.showSnackbar("${updated.title} ab $label ban gaya hai! 🔄")
+                                                    }
+                                                }
                                             },
                                             onToggleBillPaid = { billId, status ->
                                                 viewModel.toggleBillPaid(billId, status)
@@ -240,6 +252,7 @@ fun DashboardScreen(
                                             },
                                             onOpenAiGrowthAdvisor = { showAiGrowthSheet = true },
                                             onOpenSmartAdd = { showSmartAddSheet = true },
+                                            onOpenPrivacyPolicy = { showPrivacyPolicyDialog = true },
                                             onLogout = { viewModel.logout() }
                                         )
                                     }
@@ -248,6 +261,7 @@ fun DashboardScreen(
                                         TransactionsScreen(
                                             uiState = uiState,
                                             onSearchChanged = { viewModel.setSearchQuery(it) },
+                                            onTypeFilterChanged = { viewModel.setTypeFilter(it) },
                                             onCategoryFilterChanged = { viewModel.setCategoryFilter(it) },
                                             onPaymentFilterChanged = { viewModel.setPaymentFilter(it) },
                                             onDateFilterChanged = { viewModel.setDateFilter(it) },
@@ -270,6 +284,14 @@ fun DashboardScreen(
                                                 viewModel.deleteTransaction(txId)
                                                 scope.launch {
                                                     snackbarHostState.showSnackbar("Transaction deleted. 🗑️")
+                                                }
+                                            },
+                                            onToggleTransactionType = { txId ->
+                                                viewModel.toggleTransactionType(txId) { updated ->
+                                                    scope.launch {
+                                                        val label = if (updated.isExpense()) "Kharcha (Expense) 💸" else "Kamai (Income) 💰"
+                                                        snackbarHostState.showSnackbar("Changed to $label!")
+                                                    }
                                                 }
                                             }
                                         )
@@ -510,6 +532,30 @@ fun DashboardScreen(
                     }
                 )
             }
+        )
+    }
+
+    if (showSmsDisclosureDialog) {
+        com.example.ui.components.SmsPermissionDisclosureDialog(
+            onDismiss = { showSmsDisclosureDialog = false },
+            onAcceptAndRequestPermission = {
+                showSmsDisclosureDialog = false
+                permissionsLauncher.launch(
+                    arrayOf(
+                        Manifest.permission.READ_SMS,
+                        Manifest.permission.RECEIVE_SMS
+                    )
+                )
+            },
+            onViewFullPrivacyPolicy = {
+                showPrivacyPolicyDialog = true
+            }
+        )
+    }
+
+    if (showPrivacyPolicyDialog) {
+        com.example.ui.components.PrivacyPolicyDialog(
+            onDismiss = { showPrivacyPolicyDialog = false }
         )
     }
 }

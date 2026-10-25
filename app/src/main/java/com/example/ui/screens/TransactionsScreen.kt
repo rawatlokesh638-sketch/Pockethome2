@@ -1,6 +1,8 @@
 package com.example.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,14 +23,18 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Sort
+import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
@@ -52,6 +58,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -63,14 +70,19 @@ import com.example.ui.DashboardUiState
 import com.example.ui.DashboardViewModel
 import com.example.ui.DateFilterOption
 import com.example.ui.SortOption
+import com.example.ui.TransactionTypeFilter
 import com.example.ui.theme.BrandOrange
+import com.example.ui.theme.EmeraldPrimary
 import com.example.ui.theme.ExpenseRed
 import com.example.ui.theme.MoneyGreen
+import com.example.ui.theme.RosePrimary
+import com.example.ui.theme.RoyalBlue
 
 @Composable
 fun TransactionsScreen(
     uiState: DashboardUiState,
     onSearchChanged: (String) -> Unit,
+    onTypeFilterChanged: (TransactionTypeFilter) -> Unit = {},
     onCategoryFilterChanged: (String) -> Unit,
     onPaymentFilterChanged: (String) -> Unit,
     onDateFilterChanged: (DateFilterOption) -> Unit,
@@ -79,6 +91,7 @@ fun TransactionsScreen(
     onEditTransaction: (Transaction) -> Unit,
     onDuplicateTransaction: (Transaction) -> Unit,
     onDeleteTransaction: (String) -> Unit,
+    onToggleTransactionType: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var showCategoryMenu by remember { mutableStateOf(false) }
@@ -96,9 +109,11 @@ fun TransactionsScreen(
                 containerColor = BrandOrange,
                 contentColor = Color.White,
                 shape = CircleShape,
-                modifier = Modifier.padding(bottom = 80.dp).testTag("fab_add_expense_tx")
+                modifier = Modifier
+                    .padding(bottom = 80.dp)
+                    .testTag("fab_add_expense_tx")
             ) {
-                Icon(imageVector = Icons.Default.Add, contentDescription = "Add Expense")
+                Icon(imageVector = Icons.Default.Add, contentDescription = "Add Transaction")
             }
         }
     ) { innerPadding ->
@@ -107,7 +122,7 @@ fun TransactionsScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            // Header
+            // 1. Screen Header
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -125,21 +140,22 @@ fun TransactionsScreen(
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = "Ghar ke kharche track aur manage karein",
+                        text = "Kharch aur aamadani ka poora hisaab-kitaab",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
 
-                // Sort Dropdown button
+                // Sort Dropdown Button
                 Box {
                     Surface(
-                        shape = RoundedCornerShape(10.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
                         modifier = Modifier.clickable { showSortMenu = true }
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
@@ -148,7 +164,7 @@ fun TransactionsScreen(
                                 modifier = Modifier.size(16.dp),
                                 tint = BrandOrange
                             )
-                            Spacer(modifier = Modifier.width(4.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = "Sort",
                                 style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
@@ -193,7 +209,189 @@ fun TransactionsScreen(
                 }
             }
 
-            // Search Bar
+            // 2. Type Filter Tabs: [ Sabhi (All) ] [ Kharcha (Expenses 💸) ] [ Kamai (Income 💰) ]
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                val typeFilters = listOf(
+                    Triple(TransactionTypeFilter.ALL, "Sabhi (All)", null),
+                    Triple(TransactionTypeFilter.EXPENSE, "Kharcha (Expense)", RosePrimary),
+                    Triple(TransactionTypeFilter.INCOME, "Kamai (Income)", EmeraldPrimary)
+                )
+
+                typeFilters.forEach { (type, label, accentColor) ->
+                    val isSelected = uiState.selectedTypeFilter == type
+                    val containerColor = when {
+                        isSelected && accentColor != null -> accentColor
+                        isSelected -> RoyalBlue
+                        else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    }
+                    val textColor = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
+
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(containerColor)
+                            .clickable { onTypeFilterChanged(type) }
+                            .padding(vertical = 10.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = label,
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                fontSize = 11.sp
+                            ),
+                            color = textColor,
+                            maxLines = 1
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // 3. Upgraded Financial Summary Card (Side-by-Side Total Spent vs Total Income vs Net)
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp),
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Total Expense (Kharcha)
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(20.dp)
+                                    .clip(CircleShape)
+                                    .background(RosePrimary.copy(alpha = 0.15f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.ArrowDownward,
+                                    contentDescription = null,
+                                    tint = RosePrimary,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Kul Kharcha",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = DashboardViewModel.formatCurrency(uiState.filteredTotalExpenses),
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = RosePrimary,
+                                fontSize = 16.sp
+                            )
+                        )
+                    }
+
+                    // Divider
+                    Box(
+                        modifier = Modifier
+                            .height(36.dp)
+                            .width(1.dp)
+                            .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                    )
+
+                    // Total Income (Kamai)
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(horizontal = 10.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(20.dp)
+                                    .clip(CircleShape)
+                                    .background(EmeraldPrimary.copy(alpha = 0.15f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.ArrowUpward,
+                                    contentDescription = null,
+                                    tint = EmeraldPrimary,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Kul Kamai",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = DashboardViewModel.formatCurrency(uiState.filteredTotalIncome),
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = EmeraldPrimary,
+                                fontSize = 16.sp
+                            )
+                        )
+                    }
+
+                    // Divider
+                    Box(
+                        modifier = Modifier
+                            .height(36.dp)
+                            .width(1.dp)
+                            .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                    )
+
+                    // Count
+                    Column(
+                        modifier = Modifier.weight(0.9f),
+                        horizontalAlignment = Alignment.End
+                    ) {
+                        Text(
+                            text = "Hisaab Count",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = RoyalBlue.copy(alpha = 0.12f)
+                        ) {
+                            Text(
+                                text = "${uiState.filteredTransactions.size} Txns",
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                color = RoyalBlue
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // 4. Search Bar
             OutlinedTextField(
                 value = uiState.searchQuery,
                 onValueChange = onSearchChanged,
@@ -213,28 +411,29 @@ fun TransactionsScreen(
                     }
                 },
                 singleLine = true,
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(14.dp),
                 colors = TextFieldDefaults.colors(
                     focusedContainerColor = MaterialTheme.colorScheme.surface,
                     unfocusedContainerColor = MaterialTheme.colorScheme.surface
                 )
             )
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-            // Filter Chips Row
+            // 5. Filter Chips Row: [All] [This Month] [Category] [Payment]
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 // Date filter pills
                 FilterChip(
                     selected = uiState.selectedDateFilter == DateFilterOption.ALL,
                     onClick = { onDateFilterChanged(DateFilterOption.ALL) },
-                    label = { Text("All") },
-                    shape = RoundedCornerShape(16.dp),
+                    label = { Text("All Dates") },
+                    shape = RoundedCornerShape(14.dp),
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = BrandOrange,
                         selectedLabelColor = Color.White
@@ -245,7 +444,7 @@ fun TransactionsScreen(
                     selected = uiState.selectedDateFilter == DateFilterOption.THIS_MONTH,
                     onClick = { onDateFilterChanged(DateFilterOption.THIS_MONTH) },
                     label = { Text("This Month") },
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(14.dp),
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = BrandOrange,
                         selectedLabelColor = Color.White
@@ -255,7 +454,7 @@ fun TransactionsScreen(
                 // Category Filter Dropdown
                 Box {
                     Surface(
-                        shape = RoundedCornerShape(16.dp),
+                        shape = RoundedCornerShape(14.dp),
                         color = if (uiState.selectedCategoryFilter != "ALL") BrandOrange else MaterialTheme.colorScheme.surfaceVariant,
                         modifier = Modifier.clickable { showCategoryMenu = true }
                     ) {
@@ -299,7 +498,7 @@ fun TransactionsScreen(
                 // Payment Filter Dropdown
                 Box {
                     Surface(
-                        shape = RoundedCornerShape(16.dp),
+                        shape = RoundedCornerShape(14.dp),
                         color = if (uiState.selectedPaymentFilter != "ALL") BrandOrange else MaterialTheme.colorScheme.surfaceVariant,
                         modifier = Modifier.clickable { showPaymentMenu = true }
                     ) {
@@ -343,42 +542,51 @@ fun TransactionsScreen(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Transaction Count
-            Text(
-                text = "${uiState.filteredTransactions.size} Transactions",
-                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 20.dp)
-            )
-
-            Spacer(modifier = Modifier.height(6.dp))
-
-            // Transactions List
+            // 6. Transactions List
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(horizontal = 20.dp),
                 contentPadding = PaddingValues(bottom = 120.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 if (uiState.filteredTransactions.isEmpty()) {
                     item {
                         Card(
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(16.dp),
+                            shape = RoundedCornerShape(18.dp),
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                         ) {
-                            Box(
+                            Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(32.dp),
-                                contentAlignment = Alignment.Center
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
                             ) {
+                                Text("🧾", fontSize = 42.sp)
+                                Spacer(modifier = Modifier.height(8.dp))
                                 Text(
-                                    text = "Koi expense nahi mila (Data 0 hai)",
-                                    style = MaterialTheme.typography.bodyMedium,
+                                    text = "Koi hisaab nahi mila",
+                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "Naya kharcha ya aamadani jodne ke liye neeche button dabayein",
+                                    style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
+                                Spacer(modifier = Modifier.height(14.dp))
+                                Button(
+                                    onClick = onAddExpenseClicked,
+                                    colors = ButtonDefaults.buttonColors(containerColor = BrandOrange),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Add Kharcha / Income")
+                                }
                             }
                         }
                     }
@@ -388,7 +596,8 @@ fun TransactionsScreen(
                             transaction = tx,
                             onEdit = { onEditTransaction(tx) },
                             onDuplicate = { onDuplicateTransaction(tx) },
-                            onDelete = { onDeleteTransaction(tx.id) }
+                            onDelete = { onDeleteTransaction(tx.id) },
+                            onToggleType = { onToggleTransactionType(tx.id) }
                         )
                     }
                 }
@@ -402,14 +611,20 @@ private fun DetailedTransactionCard(
     transaction: Transaction,
     onEdit: () -> Unit,
     onDuplicate: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onToggleType: () -> Unit
 ) {
     val catInfo = ExpenseCategories.getCategoryInfo(transaction.category)
     val isExpense = transaction.isExpense()
 
+    val cardBorderColor = if (isExpense) RosePrimary.copy(alpha = 0.25f) else EmeraldPrimary.copy(alpha = 0.25f)
+    val amountColor = if (isExpense) RosePrimary else EmeraldPrimary
+    val prefix = if (isExpense) "- " else "+ "
+
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = androidx.compose.foundation.BorderStroke(1.dp, cardBorderColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -418,6 +633,7 @@ private fun DetailedTransactionCard(
                 .fillMaxWidth()
                 .padding(14.dp)
         ) {
+            // Row 1: Category Icon + Title/Category/Date + Amount Pill
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -429,7 +645,7 @@ private fun DetailedTransactionCard(
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(44.dp)
+                            .size(46.dp)
                             .clip(RoundedCornerShape(12.dp))
                             .background(catInfo.color.copy(alpha = 0.15f)),
                         contentAlignment = Alignment.Center
@@ -445,22 +661,46 @@ private fun DetailedTransactionCard(
                     Spacer(modifier = Modifier.width(12.dp))
 
                     Column {
-                        Text(
-                            text = transaction.title,
-                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.onSurface,
-                            maxLines = 1
-                        )
                         Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = transaction.title,
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(2.dp))
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = if (isExpense) RosePrimary.copy(alpha = 0.12f) else EmeraldPrimary.copy(alpha = 0.12f)
+                            ) {
+                                Text(
+                                    text = if (isExpense) "Kharcha 💸" else "Kamai 💰",
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isExpense) RosePrimary else EmeraldPrimary
+                                    )
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.width(6.dp))
+
                             Text(
                                 text = transaction.category,
                                 style = MaterialTheme.typography.labelSmall.copy(color = catInfo.color, fontWeight = FontWeight.SemiBold)
                             )
+
                             Text(
                                 text = " • ${transaction.date}",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
+
                             if (transaction.time.isNotEmpty()) {
                                 Text(
                                     text = " ${transaction.time}",
@@ -472,19 +712,24 @@ private fun DetailedTransactionCard(
                     }
                 }
 
-                // Amount
-                val color = if (isExpense) MaterialTheme.colorScheme.onSurface else MoneyGreen
-                val prefix = if (isExpense) "-" else "+"
-                Text(
-                    text = "$prefix${DashboardViewModel.formatCurrency(transaction.amount)}",
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.Bold,
-                        color = color
+                // Amount Display
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (isExpense) RosePrimary.copy(alpha = 0.1f) else EmeraldPrimary.copy(alpha = 0.1f)
+                ) {
+                    Text(
+                        text = "$prefix${DashboardViewModel.formatCurrency(transaction.amount)}",
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = amountColor,
+                            fontSize = 16.sp
+                        )
                     )
-                )
+                }
             }
 
-            // Notes and Badges Row
+            // Row 2: Note / Sender Details (e.g. AD-PUREBR-S)
             if (transaction.notes.isNotEmpty() || transaction.receiptUri.isNotEmpty() || transaction.isRecurring) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(
@@ -493,13 +738,18 @@ private fun DetailedTransactionCard(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     if (transaction.notes.isNotEmpty()) {
-                        Text(
-                            text = "\"${transaction.notes}\"",
-                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            modifier = Modifier.weight(1f)
-                        )
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                        ) {
+                            Text(
+                                text = "📝 ${transaction.notes}",
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1
+                            )
+                        }
                     }
 
                     if (transaction.receiptUri.isNotEmpty()) {
@@ -530,26 +780,56 @@ private fun DetailedTransactionCard(
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
-            // Action Row: Payment Mode + Actions (Edit, Duplicate, Delete)
+            // Row 3: Payment Tag + Switch Type Button + Actions (Edit, Duplicate, Delete)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Payment Method Tag
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f))
-                        .padding(horizontal = 8.dp, vertical = 3.dp)
-                ) {
-                    Text(
-                        text = transaction.paymentMethod,
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // Payment Method Tag
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f))
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = transaction.paymentMethod,
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Medium),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    // 1-Tap Toggle between Kharch and Kamai
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                        modifier = Modifier.clickable(onClick = onToggleType)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.SwapHoriz,
+                                contentDescription = "Toggle Type",
+                                modifier = Modifier.size(13.dp),
+                                tint = RoyalBlue
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = if (isExpense) "Make Income" else "Make Expense",
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold),
+                                color = RoyalBlue
+                            )
+                        }
+                    }
                 }
 
                 // Action Icons (Edit, Duplicate, Delete)

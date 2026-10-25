@@ -15,8 +15,8 @@ object SmsParser {
     private val AMOUNT_PATTERNS = listOf(
         Pattern.compile("""(?:Rs\.?|INR|₹|\$|USD)\s*([0-9,]+(?:\.[0-9]{1,2})?)""", Pattern.CASE_INSENSITIVE),
         Pattern.compile("""([0-9,]+(?:\.[0-9]{1,2})?)\s*(?:Rs\.?|INR|₹)""", Pattern.CASE_INSENSITIVE),
-        Pattern.compile("""amt(?:ount)?\s*(?:of)?\s*(?:Rs\.?|INR|₹)?\s*([0-9,]+(?:\.[0-9]{1,2})?)""", Pattern.CASE_INSENSITIVE),
-        Pattern.compile("""for\s*(?:Rs\.?|INR|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)""", Pattern.CASE_INSENSITIVE)
+        Pattern.compile("""(?:amt|amount|for|of|spent|paid|debited|received)\s*(?:of|by|is|for)?\s*(?:Rs\.?|INR|₹)?\s*([0-9,]+(?:\.[0-9]{1,2})?)""", Pattern.CASE_INSENSITIVE),
+        Pattern.compile("""\b([0-9]{2,6}(?:\.[0-9]{1,2})?)\s*(?:debited|spent|paid|credited)""", Pattern.CASE_INSENSITIVE)
     )
 
     private val MERCHANT_REGEX = Pattern.compile(
@@ -32,26 +32,48 @@ object SmsParser {
     ): Transaction? {
         val lowerBody = body.lowercase()
 
-        // Comprehensive financial / transaction keywords (Bank, Wallet, Amazon Pay, Credit Card, UPI, OTP alerts)
-        val isExpense = lowerBody.contains("debited") || lowerBody.contains("spent") ||
+        // 1. Detect Merchant Payment Receipts (e.g. AD-PUREBR-S: "payment of Rs 3,000 received for your order...")
+        // When a merchant acknowledges receipt of user's payment, for the user this is an EXPENSE.
+        val isMerchantReceipt = (lowerBody.contains("payment of") || lowerBody.contains("payment received") ||
+                lowerBody.contains("received your payment") || lowerBody.contains("we have received") ||
+                lowerBody.contains("order received") || lowerBody.contains("received towards") ||
+                lowerBody.contains("order placed") || lowerBody.contains("order confirmed") ||
+                lowerBody.contains("booking confirmed") || lowerBody.contains("bill paid")) &&
+                !lowerBody.contains("credited to your") && !lowerBody.contains("credited in your") &&
+                !lowerBody.contains("deposited to") && !lowerBody.contains("salary")
+
+        // 2. Comprehensive Debit / Expense keywords
+        val isExplicitExpense = lowerBody.contains("debited") || lowerBody.contains("spent") ||
                 lowerBody.contains("paid") || lowerBody.contains("withdrawn") ||
                 lowerBody.contains("purchase") || lowerBody.contains("sent") ||
                 lowerBody.contains("deducted") || lowerBody.contains("charged") ||
-                lowerBody.contains("used") || lowerBody.contains("payment of") ||
-                lowerBody.contains("order placed") || lowerBody.contains("bought") ||
-                lowerBody.contains("transferred") || lowerBody.contains("txn of") ||
-                lowerBody.contains("transaction of") || lowerBody.contains("bill paid") ||
-                lowerBody.contains("auto-debited") || lowerBody.contains("auto debit") ||
-                lowerBody.contains("renewed") || lowerBody.contains("subscription")
+                lowerBody.contains("used") || lowerBody.contains("transferred to") ||
+                lowerBody.contains("transfer to") || lowerBody.contains("txn of") ||
+                lowerBody.contains("transaction of") || lowerBody.contains("auto-debited") ||
+                lowerBody.contains("auto debit") || lowerBody.contains("renewed") ||
+                lowerBody.contains("subscription") || isMerchantReceipt
 
-        val isIncome = lowerBody.contains("credited") || lowerBody.contains("received") ||
-                lowerBody.contains("deposited") || lowerBody.contains("refund") ||
-                lowerBody.contains("cashback") || lowerBody.contains("salary") ||
-                lowerBody.contains("added to") || lowerBody.contains("added in") ||
-                lowerBody.contains("reversed") || lowerBody.contains("topup")
+        // 3. Genuine Credit / Income keywords (credited to user's personal bank account)
+        val isExplicitIncome = !isExplicitExpense && (
+                lowerBody.contains("credited to your") || lowerBody.contains("credited to a/c") ||
+                lowerBody.contains("credited in your") || lowerBody.contains("salary credited") ||
+                lowerBody.contains("salary") || lowerBody.contains("cashback credited") ||
+                lowerBody.contains("cashback received") || lowerBody.contains("refund credited") ||
+                lowerBody.contains("refund received") || lowerBody.contains("deposited to") ||
+                lowerBody.contains("received in your a/c") || lowerBody.contains("received in your account") ||
+                (lowerBody.contains("credited") && !lowerBody.contains("debited"))
+        )
 
-        if (!isExpense && !isIncome) {
-            return null
+        if (!isExplicitExpense && !isExplicitIncome) {
+            // Check fallback for bank financial notifications
+            val hasFinancialHeader = sender.contains("BANK", ignoreCase = true) ||
+                    sender.contains("HDFC", ignoreCase = true) || sender.contains("SBI", ignoreCase = true) ||
+                    sender.contains("ICICI", ignoreCase = true) || sender.contains("AXIS", ignoreCase = true) ||
+                    sender.contains("KOTAK", ignoreCase = true) || sender.contains("PAYTM", ignoreCase = true) ||
+                    sender.contains("PHONEPE", ignoreCase = true)
+            if (!hasFinancialHeader) {
+                return null
+            }
         }
 
         // Extract Amount using multiple fallback patterns
@@ -72,20 +94,26 @@ object SmsParser {
             return null
         }
 
+        val isFinalIncome = isExplicitIncome && !isExplicitExpense
+
         // Extract Merchant / Merchant Name
         var merchant = detectKnownMerchant(lowerBody)
 
         if (merchant.isBlank()) {
             val mMatcher = MERCHANT_REGEX.matcher(body)
             if (mMatcher.find()) {
-                merchant = mMatcher.group(1)?.trim() ?: ""
+                val extracted = mMatcher.group(1)?.trim() ?: ""
+                if (extracted.length > 2 && !extracted.equals("your account", ignoreCase = true) && !extracted.equals("vpa", ignoreCase = true)) {
+                    merchant = extracted
+                }
             }
         }
 
         if (merchant.isBlank()) {
             merchant = when {
+                sender.contains("PUREBR", ignoreCase = true) || lowerBody.contains("purebr") -> "Pure Brands (PUREBR)"
                 lowerBody.contains("amazon") -> "Amazon"
-                lowerBody.contains("paytm") -> "Paytm Wallet"
+                lowerBody.contains("paytm") -> "Paytm"
                 lowerBody.contains("phonepe") -> "PhonePe"
                 sender.contains("HDFC", ignoreCase = true) -> "HDFC Bank"
                 sender.contains("SBI", ignoreCase = true) -> "SBI Bank"
@@ -96,11 +124,18 @@ object SmsParser {
                 sender.contains("PNB", ignoreCase = true) -> "PNB Bank"
                 sender.contains("PAYTM", ignoreCase = true) -> "Paytm"
                 sender.contains("PHONEPE", ignoreCase = true) -> "PhonePe"
-                else -> if (isIncome) "Money Received" else "Card / Bank Expense"
+                sender.contains("-") -> {
+                    // Extract code after hyphen, e.g. AD-PUREBR-S -> PUREBR
+                    val parts = sender.split("-")
+                    if (parts.size >= 2 && parts[1].length >= 3) {
+                        parts[1].uppercase()
+                    } else if (isFinalIncome) "Money Received" else "Card / Bank Expense"
+                }
+                else -> if (isFinalIncome) "Money Received" else "Card / Bank Expense"
             }
         }
 
-        val category = detectCategory(merchant + " " + body, isIncome)
+        val category = detectCategory(merchant + " " + body, isFinalIncome)
         val paymentMethod = detectPaymentMethod(body)
 
         val dateStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(timestamp))
@@ -117,7 +152,7 @@ object SmsParser {
             userId = userId,
             title = merchant.take(30),
             amount = amount,
-            type = if (isIncome) Transaction.TYPE_INCOME else Transaction.TYPE_EXPENSE,
+            type = if (isFinalIncome) Transaction.TYPE_INCOME else Transaction.TYPE_EXPENSE,
             category = category,
             paymentMethod = paymentMethod,
             notes = noteText,
@@ -198,6 +233,7 @@ object SmsParser {
             lower.contains("amazon") || lower.contains("flipkart") || lower.contains("myntra") ||
                     lower.contains("ajio") || lower.contains("meesho") || lower.contains("nykaa") ||
                     lower.contains("zara") || lower.contains("h&m") || lower.contains("shopping") ||
+                    lower.contains("purebr") || lower.contains("pure brands") ||
                     lower.contains("mall") -> "Shopping"
 
             lower.contains("apollo") || lower.contains("pharmeasy") || lower.contains("1mg") ||

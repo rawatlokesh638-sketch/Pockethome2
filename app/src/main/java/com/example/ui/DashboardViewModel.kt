@@ -60,6 +60,14 @@ data class CategoryBudgetStatus(
     val percentage: Float
 )
 
+enum class TransactionTypeFilter {
+    ALL, EXPENSE, INCOME
+}
+
+enum class ChartDataType {
+    EXPENSE, INCOME, ALL
+}
+
 data class DashboardUiState(
     val currentMonthExpenses: Double = 0.0,
     val currentMonthIncome: Double = 0.0,
@@ -79,6 +87,12 @@ data class DashboardUiState(
     val isSpendHigherThanLastMonth: Boolean = false,
     val incomePercentVsLastMonth: Float = 0f,
     val categoryBreakdown: List<CategorySpend> = emptyList(),
+    val allTimeCategoryBreakdown: List<CategorySpend> = emptyList(),
+    val incomeCategoryBreakdown: List<CategorySpend> = emptyList(),
+    val totalTransactionCount: Int = 0,
+    val expenseTransactionCount: Int = 0,
+    val incomeTransactionCount: Int = 0,
+    val selectedChartDataType: ChartDataType = ChartDataType.EXPENSE,
     val recentTransactions: List<Transaction> = emptyList(),
     val filteredTransactions: List<Transaction> = emptyList(),
     val upcomingBills: List<Bill> = emptyList(),
@@ -89,6 +103,10 @@ data class DashboardUiState(
     val isUserLoggedIn: Boolean = false,
     val homeTimeframe: HomeTimeframe = HomeTimeframe.THIS_MONTH,
     val reportsTimeframe: ReportsTimeframe = ReportsTimeframe.MONTHLY,
+    val selectedTypeFilter: TransactionTypeFilter = TransactionTypeFilter.ALL,
+    val filteredTotalExpenses: Double = 0.0,
+    val filteredTotalIncome: Double = 0.0,
+    val filteredNetBalance: Double = 0.0,
     val selectedCategoryFilter: String = "ALL",
     val selectedPaymentFilter: String = "ALL",
     val selectedDateFilter: DateFilterOption = DateFilterOption.ALL,
@@ -137,6 +155,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     private val _selectedPaymentFilter = MutableStateFlow("ALL")
     private val _selectedDateFilter = MutableStateFlow(DateFilterOption.ALL)
     private val _selectedSortOption = MutableStateFlow(SortOption.DATE_DESC)
+    private val _selectedTypeFilter = MutableStateFlow(TransactionTypeFilter.ALL)
 
     private val _activeUserId = MutableStateFlow(repository.getActiveUserId())
     private val _transactions = MutableStateFlow<List<Transaction>>(emptyList())
@@ -166,14 +185,14 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     private val filterFlow = combine(
         navFlow,
         authFlow,
-        combine(_selectedCategoryFilter, _selectedPaymentFilter, _selectedDateFilter, _selectedSortOption) { c, p, d, s ->
-            Quad(c, p, d, s)
+        combine(_selectedCategoryFilter, _selectedPaymentFilter, _selectedDateFilter, _selectedSortOption, _selectedTypeFilter) { c, p, d, s, t ->
+            FilterOptions(c, p, d, s, t)
         }
     ) { nav, auth, f ->
         FilterState(
             nav.first, nav.second, nav.third, nav.fourth,
             auth.first, auth.second, auth.third, auth.fourth,
-            f.first, f.second, f.third, f.fourth
+            f.category, f.payment, f.date, f.sort, f.type
         )
     }
 
@@ -288,6 +307,63 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                 _authLoading.value = false
                 _authError.value = formatAuthError(e)
             }
+    }
+
+    fun signInWithGoogle(context: android.content.Context) {
+        _authLoading.value = true
+        _authError.value = null
+        viewModelScope.launch {
+            try {
+                val credentialManager = androidx.credentials.CredentialManager.create(context)
+                val rawClientId = System.getenv("WEB_CLIENT_ID") ?: ""
+                val webClientId = rawClientId.ifEmpty { "248460314025-pockethome.apps.googleusercontent.com" }
+
+                val googleIdOption = com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption.Builder(webClientId)
+                    .build()
+
+                val request = androidx.credentials.GetCredentialRequest.Builder()
+                    .addCredentialOption(googleIdOption)
+                    .build()
+
+                val activity = context as? android.app.Activity
+                if (activity != null) {
+                    val result = credentialManager.getCredential(activity, request)
+                    val googleIdTokenCredential = com.google.android.libraries.identity.googleid.GoogleIdTokenCredential.createFrom(result.credential.data)
+                    val firebaseCredential = com.google.firebase.auth.GoogleAuthProvider.getCredential(googleIdTokenCredential.idToken, null)
+
+                    Firebase.auth.signInWithCredential(firebaseCredential)
+                        .addOnSuccessListener {
+                            _authLoading.value = false
+                        }
+                        .addOnFailureListener { e ->
+                            _authLoading.value = false
+                            _authError.value = "Google Sign-In failed: ${e.localizedMessage}"
+                        }
+                } else {
+                    _authLoading.value = false
+                    _authError.value = "Activity context not found for Google Sign-In."
+                }
+            } catch (e: Exception) {
+                _authLoading.value = false
+                val msg = e.localizedMessage ?: "Google Sign-In error"
+                _authError.value = if (msg.contains("No credentials", ignoreCase = true) || msg.contains("canceled", ignoreCase = true)) {
+                    "Google Sign-In prompt dismiss ho gaya ya device me Google Account signed-in nahi hai."
+                } else {
+                    "Google Sign-In: $msg"
+                }
+            }
+        }
+    }
+
+    fun loginAsGuest() {
+        _authLoading.value = false
+        _authError.value = null
+        val guestId = "guest_user"
+        _activeUserId.value = guestId
+        _localUserName.value = "Atithi / Guest"
+        _isUserLoggedIn.value = true
+        _authMode.value = AuthMode.DASHBOARD
+        repository.onUserChanged(guestId)
     }
 
     fun logout() {
@@ -445,7 +521,10 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                 return sdfDate.format(yCal.time)
             }
 
+            val currentYear = Calendar.getInstance().get(Calendar.YEAR)
             val formats = listOf(
+                SimpleDateFormat("yyyy-MM-dd", Locale.ENGLISH),
+                SimpleDateFormat("yyyy/MM/dd", Locale.ENGLISH),
                 SimpleDateFormat("dd/MM/yyyy", Locale.ENGLISH),
                 SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()),
                 SimpleDateFormat("MM/dd/yyyy", Locale.ENGLISH),
@@ -456,16 +535,25 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                 SimpleDateFormat("d MMMM yyyy", Locale.ENGLISH),
                 SimpleDateFormat("MMM d, yyyy", Locale.ENGLISH),
                 SimpleDateFormat("MMMM d, yyyy", Locale.ENGLISH),
-                SimpleDateFormat("yyyy/MM/dd", Locale.ENGLISH)
+                // Formats without year:
+                SimpleDateFormat("d MMM", Locale.ENGLISH),
+                SimpleDateFormat("d MMM", Locale.getDefault()),
+                SimpleDateFormat("dd MMM", Locale.ENGLISH),
+                SimpleDateFormat("dd/MM", Locale.ENGLISH),
+                SimpleDateFormat("dd-MM", Locale.ENGLISH)
             )
 
             for (fmt in formats) {
                 try {
                     val parsed = fmt.parse(trimmed)
                     if (parsed != null) {
-                        return sdfDate.format(parsed)
+                        val c = Calendar.getInstance().apply { time = parsed }
+                        if (c.get(Calendar.YEAR) < 2000) {
+                            c.set(Calendar.YEAR, currentYear)
+                        }
+                        return sdfDate.format(c.time)
                     }
-                } catch (e: Exception) {
+                } catch (_: Exception) {
                     // ignore
                 }
             }
@@ -478,8 +566,19 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         return nowIso
     }
 
-    fun getChartData(timeframe: ChartTimeframe): List<ChartBarData> {
-        val all = _transactions.value.filter { it.isExpense() }
+    private val _selectedChartDataType = MutableStateFlow(ChartDataType.EXPENSE)
+    val selectedChartDataType = _selectedChartDataType.asStateFlow()
+
+    fun setChartDataType(type: ChartDataType) {
+        _selectedChartDataType.value = type
+    }
+
+    fun getChartData(timeframe: ChartTimeframe, dataType: ChartDataType = _selectedChartDataType.value): List<ChartBarData> {
+        val filteredTxs = when (dataType) {
+            ChartDataType.EXPENSE -> _transactions.value.filter { it.isExpense() }
+            ChartDataType.INCOME -> _transactions.value.filter { it.isIncome() }
+            ChartDataType.ALL -> _transactions.value
+        }
         val sdfDate = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
 
         return when (timeframe) {
@@ -488,12 +587,35 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                 val dayFormat = SimpleDateFormat("EEE", Locale.getDefault())
                 val todayStr = sdfDate.format(Date())
 
+                var hasAny = false
                 for (i in 6 downTo 0) {
                     val c = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -i) }
                     val dStr = sdfDate.format(c.time)
                     val lbl = dayFormat.format(c.time)
-                    val sum = all.filter { getIsoDateStr(it) == dStr }.sumOf { it.amount }
+                    val sum = filteredTxs.filter { getIsoDateStr(it) == dStr }.sumOf { it.amount }
+                    if (sum > 0) hasAny = true
                     days.add(ChartBarData(label = lbl, amount = sum, isHighlighted = (dStr == todayStr)))
+                }
+
+                // If standard last 7 days are all ₹0, but we have transactions,
+                // anchor the 7-day view on the latest transaction's date so the user sees their entries!
+                if (!hasAny && filteredTxs.isNotEmpty()) {
+                    val latestIso = filteredTxs.map { getIsoDateStr(it) }.maxOrNull() ?: todayStr
+                    val parsedLatest = try { sdfDate.parse(latestIso) } catch (_: Exception) { null }
+                    if (parsedLatest != null) {
+                        val fallbackDays = mutableListOf<ChartBarData>()
+                        for (i in 6 downTo 0) {
+                            val c = Calendar.getInstance().apply {
+                                time = parsedLatest
+                                add(Calendar.DAY_OF_YEAR, -i)
+                            }
+                            val dStr = sdfDate.format(c.time)
+                            val lbl = if (i == 0) "Latest" else dayFormat.format(c.time)
+                            val sum = filteredTxs.filter { getIsoDateStr(it) == dStr }.sumOf { it.amount }
+                            fallbackDays.add(ChartBarData(label = lbl, amount = sum, isHighlighted = (i == 0)))
+                        }
+                        return fallbackDays
+                    }
                 }
                 days
             }
@@ -506,7 +628,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                     val cEnd = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -endDayOffset) }
                     val sDate = sdfDate.format(cStart.time)
                     val eDate = sdfDate.format(cEnd.time)
-                    val sum = all.filter {
+                    val sum = filteredTxs.filter {
                         getIsoDateStr(it) in sDate..eDate
                     }.sumOf { it.amount }
                     weeks.add(ChartBarData(label = "Wk $w", amount = sum, isHighlighted = (w == 1)))
@@ -522,7 +644,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                     val c = Calendar.getInstance().apply { add(Calendar.MONTH, -m) }
                     val mKey = SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(c.time)
                     val mLbl = monthLabelFormat.format(c.time)
-                    val sum = all.filter {
+                    val sum = filteredTxs.filter {
                         getIsoDateStr(it).take(7) == mKey
                     }.sumOf { it.amount }
                     months.add(ChartBarData(label = mLbl, amount = sum, isHighlighted = (mKey == currentMonthKey)))
@@ -616,6 +738,10 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         var allTimeIncome = 0.0
         val categoryMap = mutableMapOf<String, Double>()
         val categoryCountMap = mutableMapOf<String, Int>()
+        val allTimeCategoryMap = mutableMapOf<String, Double>()
+        val allTimeCategoryCountMap = mutableMapOf<String, Int>()
+        val incomeCategoryMap = mutableMapOf<String, Double>()
+        val incomeCategoryCountMap = mutableMapOf<String, Int>()
 
         for (tx in allTransactions) {
             val txEffectiveDate = getIsoDateStr(tx)
@@ -629,6 +755,8 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
 
             if (tx.isExpense()) {
                 allTimeExpenses += tx.amount
+                allTimeCategoryMap[tx.category] = (allTimeCategoryMap[tx.category] ?: 0.0) + tx.amount
+                allTimeCategoryCountMap[tx.category] = (allTimeCategoryCountMap[tx.category] ?: 0) + 1
                 if (isCurrentPeriod) {
                     expensesCurrent += tx.amount
                     categoryMap[tx.category] = (categoryMap[tx.category] ?: 0.0) + tx.amount
@@ -642,6 +770,8 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                 }
             } else if (tx.isIncome()) {
                 allTimeIncome += tx.amount
+                incomeCategoryMap[tx.category] = (incomeCategoryMap[tx.category] ?: 0.0) + tx.amount
+                incomeCategoryCountMap[tx.category] = (incomeCategoryCountMap[tx.category] ?: 0) + 1
                 if (isCurrentPeriod) {
                     incomeCurrent += tx.amount
                 } else if (isLastMonth) {
@@ -660,14 +790,39 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         val diffPercent = if (expensesLast > 0) ((diff / expensesLast) * 100).toFloat() else 0f
         val incomeDiffPercent = if (incomeLast > 0) (((incomeCurrent - incomeLast) / incomeLast) * 100).toFloat() else 0f
 
-        // Category breakdown
-        val breakdown = categoryMap.entries.map { (cat, amount) ->
-            val pct = if (expensesCurrent > 0) ((amount / expensesCurrent) * 100).toFloat() else 0f
+        // Category breakdown: if current period has 0 expenses but all-time has expenses,
+        // use all-time categories so user doesn't see a dead blank screen!
+        val effectiveCatMap = if (categoryMap.isEmpty() && allTimeCategoryMap.isNotEmpty()) allTimeCategoryMap else categoryMap
+        val effectiveCatCounts = if (categoryMap.isEmpty() && allTimeCategoryMap.isNotEmpty()) allTimeCategoryCountMap else categoryCountMap
+        val effectiveTotal = if (categoryMap.isEmpty() && allTimeCategoryMap.isNotEmpty()) allTimeExpenses else expensesCurrent
+
+        val breakdown = effectiveCatMap.entries.map { (cat, amount) ->
+            val pct = if (effectiveTotal > 0) ((amount / effectiveTotal) * 100).toFloat() else 0f
             CategorySpend(
                 categoryName = cat,
                 totalAmount = amount,
                 percentage = pct,
-                count = categoryCountMap[cat] ?: 1
+                count = effectiveCatCounts[cat] ?: 1
+            )
+        }.sortedByDescending { it.totalAmount }
+
+        val allTimeBreakdown = allTimeCategoryMap.entries.map { (cat, amount) ->
+            val pct = if (allTimeExpenses > 0) ((amount / allTimeExpenses) * 100).toFloat() else 0f
+            CategorySpend(
+                categoryName = cat,
+                totalAmount = amount,
+                percentage = pct,
+                count = allTimeCategoryCountMap[cat] ?: 1
+            )
+        }.sortedByDescending { it.totalAmount }
+
+        val incomeBreakdown = incomeCategoryMap.entries.map { (cat, amount) ->
+            val pct = if (allTimeIncome > 0) ((amount / allTimeIncome) * 100).toFloat() else 0f
+            CategorySpend(
+                categoryName = cat,
+                totalAmount = amount,
+                percentage = pct,
+                count = incomeCategoryCountMap[cat] ?: 1
             )
         }.sortedByDescending { it.totalAmount }
 
@@ -708,7 +863,12 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                         tx.paymentMethod.contains(filters.searchQuery, ignoreCase = true) ||
                         tx.amount.toString().contains(filters.searchQuery)
             }
-            matchesCategory && matchesPayment && matchesPeriod && matchesDate && matchesQuery
+            val matchesType = when (filters.typeFilter) {
+                TransactionTypeFilter.ALL -> true
+                TransactionTypeFilter.EXPENSE -> tx.isExpense()
+                TransactionTypeFilter.INCOME -> tx.isIncome()
+            }
+            matchesCategory && matchesPayment && matchesPeriod && matchesDate && matchesQuery && matchesType
         }.let { list ->
             when (filters.sortOption) {
                 SortOption.DATE_DESC -> list.sortedWith(compareByDescending<Transaction> { it.date }.thenByDescending { it.timestamp })
@@ -717,6 +877,10 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                 SortOption.AMOUNT_ASC -> list.sortedBy { it.amount }
             }
         }
+
+        val fExpenses = filtered.filter { it.isExpense() }.sumOf { it.amount }
+        val fIncome = filtered.filter { it.isIncome() }.sumOf { it.amount }
+        val fBalance = fIncome - fExpenses
 
         val sortedBills = allBills.sortedWith(
             compareBy<Bill> { it.isPaid }.thenBy { it.dueDate }
@@ -754,6 +918,12 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
             isSpendHigherThanLastMonth = diff > 0,
             incomePercentVsLastMonth = incomeDiffPercent,
             categoryBreakdown = breakdown,
+            allTimeCategoryBreakdown = allTimeBreakdown,
+            incomeCategoryBreakdown = incomeBreakdown,
+            totalTransactionCount = allTransactions.size,
+            expenseTransactionCount = allTransactions.count { it.isExpense() },
+            incomeTransactionCount = allTransactions.count { it.isIncome() },
+            selectedChartDataType = _selectedChartDataType.value,
             recentTransactions = allTransactions.take(10),
             filteredTransactions = filtered,
             upcomingBills = sortedBills,
@@ -764,6 +934,10 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
             isUserLoggedIn = filters.isLoggedIn,
             homeTimeframe = filters.homeTimeframe,
             reportsTimeframe = filters.reportsTimeframe,
+            selectedTypeFilter = filters.typeFilter,
+            filteredTotalExpenses = fExpenses,
+            filteredTotalIncome = fIncome,
+            filteredNetBalance = fBalance,
             selectedCategoryFilter = filters.categoryFilter,
             selectedPaymentFilter = filters.paymentFilter,
             selectedDateFilter = filters.dateFilter,
@@ -787,6 +961,14 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
 
     private data class DataQuad<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
 
+    private data class FilterOptions(
+        val category: String,
+        val payment: String,
+        val date: DateFilterOption,
+        val sort: SortOption,
+        val type: TransactionTypeFilter
+    )
+
     private data class FilterState(
         val tab: AppTab,
         val homeTimeframe: HomeTimeframe,
@@ -799,10 +981,21 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         val categoryFilter: String,
         val paymentFilter: String,
         val dateFilter: DateFilterOption,
-        val sortOption: SortOption
+        val sortOption: SortOption,
+        val typeFilter: TransactionTypeFilter
     )
 
     private data class Quad<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
+
+    fun setTypeFilter(filter: TransactionTypeFilter) {
+        _selectedTypeFilter.value = filter
+    }
+
+    fun toggleTransactionType(transactionId: String, onComplete: (Transaction) -> Unit = {}) {
+        repository.toggleTransactionType(_activeUserId.value, transactionId) { updated ->
+            onComplete(updated)
+        }
+    }
 
     fun getCustomApiKey(): String = repository.getCustomApiKey()
 

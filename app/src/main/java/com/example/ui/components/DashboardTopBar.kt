@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Leaderboard
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -24,7 +25,8 @@ fun DashboardTopBar(
     userTier: UserLevelTier = UserLevelTier.IRON,
     userXp: Int = 0,
     onTabSelected: (AppTab) -> Unit,
-    onOpenAiAdvisor: () -> Unit
+    onOpenAiAdvisor: () -> Unit,
+    onOpenPrivacyPolicy: () -> Unit = {}
 ) {
     var expanded by remember { mutableStateOf(false) }
 
@@ -82,9 +84,24 @@ fun DashboardTopBar(
                         }
                     )
                 }
+                HorizontalDivider()
+                DropdownMenuItem(
+                    text = { Text("Privacy Policy & Terms 📜") },
+                    onClick = {
+                        expanded = false
+                        onOpenPrivacyPolicy()
+                    }
+                )
             }
         },
         actions = {
+            IconButton(onClick = onOpenPrivacyPolicy) {
+                Icon(
+                    imageVector = Icons.Default.Lock,
+                    contentDescription = "Privacy Policy & Zero Sharing",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
             IconButton(onClick = { onTabSelected(AppTab.LEADERBOARD) }) {
                 Icon(
                     imageVector = Icons.Default.Leaderboard,

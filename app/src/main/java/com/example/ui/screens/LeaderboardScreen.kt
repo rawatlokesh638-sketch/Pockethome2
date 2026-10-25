@@ -277,7 +277,7 @@ fun LeaderboardScreen(
                 }
             }
 
-            // 3. Top 3 Podium Section
+            // 3. Top Podium Section (Pure Firebase RTDB Users)
             item(key = "podium_section") {
                 if (top3.isNotEmpty()) {
                     Column {
@@ -287,7 +287,7 @@ fun LeaderboardScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "Global Top Savers 🏆",
+                                text = "Firebase Live Rankings 🏆",
                                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                                 color = MaterialTheme.colorScheme.onSurface
                             )
@@ -296,7 +296,7 @@ fun LeaderboardScreen(
                                 color = MoneyGreen.copy(alpha = 0.12f)
                             ) {
                                 Text(
-                                    text = "Live Ranking",
+                                    text = "Firebase RTDB Live",
                                     style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                                     color = MoneyGreen,
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
@@ -330,11 +330,52 @@ fun LeaderboardScreen(
 
             // 4. Remaining Leaderboard List
             item(key = "leaderboard_header") {
-                Text(
-                    text = "Leaderboard Ranks",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.onSurface
-                )
+                Column {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Leaderboard Ranks (${leaderboard.size} Registered Users)",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = RoyalBlue.copy(alpha = 0.12f)
+                        ) {
+                            Text(
+                                text = "Synced via Firebase",
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                color = RoyalBlue,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+
+                    if (remainingLeaderboard.isEmpty()) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.TrendingUp, contentDescription = null, tint = RoyalBlue, modifier = Modifier.size(20.dp))
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    text = "Firebase Realtime Database par naye users ke sign-up/transactions karte hi unki live ranks yahan auto-sync hongi! 🚀",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
             }
 
             items(remainingLeaderboard, key = { it.userId }) { entry ->

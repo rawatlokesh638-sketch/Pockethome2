@@ -83,6 +83,7 @@ class ExpenseRepository(private val context: Context) {
     private var budgetListener: ValueEventListener? = null
     private var proStatusListener: ValueEventListener? = null
     private var leaderboardListener: ValueEventListener? = null
+    private var chatSessionsListener: ValueEventListener? = null
 
     init {
         ensureFirebaseInitialized()
@@ -152,6 +153,7 @@ class ExpenseRepository(private val context: Context) {
             txListener?.let { userRef.child("transactions").removeEventListener(it) }
             billListener?.let { userRef.child("bills").removeEventListener(it) }
             proStatusListener?.let { userRef.child("pro_status").removeEventListener(it) }
+            chatSessionsListener?.let { userRef.child("chat_sessions").removeEventListener(it) }
             val currentMonthStr = SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(Date())
             budgetListener?.let { userRef.child("budgets").child(currentMonthStr).removeEventListener(it) }
             leaderboardListener?.let { database.reference.child("leaderboard_ranks").removeEventListener(it) }
@@ -161,14 +163,19 @@ class ExpenseRepository(private val context: Context) {
         budgetListener = null
         proStatusListener = null
         leaderboardListener = null
+        chatSessionsListener = null
     }
 
     private fun loadLocalCacheForUser(userId: String) {
         try {
             val txJson = prefs.getString("cached_transactions_$userId", null)
             if (!txJson.isNullOrEmpty()) {
-                val list = transactionListAdapter.fromJson(txJson) ?: emptyList()
+                val rawList = transactionListAdapter.fromJson(txJson) ?: emptyList()
+                val list = sanitizeTransactions(rawList)
                 _localTransactions.value = list
+                if (list != rawList) {
+                    persistLocalTransactions(userId, list)
+                }
             } else {
                 _localTransactions.value = emptyList()
             }
@@ -240,11 +247,42 @@ class ExpenseRepository(private val context: Context) {
         }
     }
 
+    fun sanitizeTransactions(list: List<Transaction>): List<Transaction> {
+        return list.map { tx ->
+            val lowerNotes = tx.notes.lowercase()
+            val lowerTitle = tx.title.lowercase()
+
+            val isDebitOrMerchant = tx.sender.contains("PUREBR", ignoreCase = true) ||
+                tx.notes.contains("PUREBR", ignoreCase = true) ||
+                tx.title.contains("Pure Brands", ignoreCase = true) ||
+                lowerNotes.contains("debited") || lowerNotes.contains("spent") ||
+                lowerNotes.contains("paid") || lowerNotes.contains("purchase") ||
+                lowerTitle.contains("purebr") || lowerTitle.contains("pure brands") ||
+                lowerTitle.contains("amazon") || lowerTitle.contains("swiggy") ||
+                lowerTitle.contains("zomato") || lowerTitle.contains("blinkit") ||
+                lowerTitle.contains("zepto") ||
+                (tx.title.equals("Money Received", ignoreCase = true) && tx.sender.contains("-"))
+
+            if (tx.isIncome() && isDebitOrMerchant) {
+                tx.copy(
+                    type = Transaction.TYPE_EXPENSE,
+                    title = if (tx.title.equals("Money Received", ignoreCase = true)) {
+                        if (tx.sender.contains("PUREBR", ignoreCase = true)) "Pure Brands (PUREBR)" else "Card / UPI Expense"
+                    } else tx.title,
+                    category = if (tx.category == "Others") "Shopping" else tx.category
+                )
+            } else {
+                tx
+            }
+        }
+    }
+
     private fun persistLocalTransactions(userId: String, list: List<Transaction>) {
-        _localTransactions.value = list
+        val sanitized = sanitizeTransactions(list)
+        _localTransactions.value = sanitized
         try {
             val key = if (userId.isNotEmpty()) "cached_transactions_$userId" else "cached_transactions"
-            prefs.edit().putString(key, transactionListAdapter.toJson(list)).apply()
+            prefs.edit().putString(key, transactionListAdapter.toJson(sanitized)).apply()
         } catch (e: Throwable) {
             Log.e("ExpenseRepo", "Error persisting transactions", e)
         }
@@ -437,7 +475,7 @@ class ExpenseRepository(private val context: Context) {
         }
         userRef.child("pro_status").addValueEventListener(proStatusListener!!)
 
-        // Leaderboard Listener
+        // Leaderboard Listener - 100% Pure Realtime Database Read & Write
         leaderboardListener?.let { database.reference.child("leaderboard_ranks").removeEventListener(it) }
         leaderboardListener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
@@ -445,16 +483,76 @@ class ExpenseRepository(private val context: Context) {
                 if (snapshot.exists()) {
                     for (child in snapshot.children) {
                         try {
-                            child.getValue(com.example.model.LeaderboardEntry::class.java)?.let { entry ->
+                            // 1. Direct class parsing
+                            val direct = try {
+                                child.getValue(com.example.model.LeaderboardEntry::class.java)
+                            } catch (_: Exception) { null }
+
+                            val entry = direct ?: run {
+                                // 2. Robust map field fallback if field names vary in RTDB
+                                val key = child.key ?: ""
+                                val name = child.child("handleName").getValue(String::class.java)
+                                    ?: child.child("name").getValue(String::class.java)
+                                    ?: child.child("userName").getValue(String::class.java)
+                                    ?: child.child("displayName").getValue(String::class.java)
+                                    ?: "Saver_${key.takeLast(4)}"
+
+                                val xp = (child.child("xpPoints").value as? Long)?.toInt()
+                                    ?: (child.child("xp").value as? Long)?.toInt()
+                                    ?: (child.child("points").value as? Long)?.toInt()
+                                    ?: (child.child("xpPoints").value as? String)?.toIntOrNull()
+                                    ?: 0
+
+                                val health = (child.child("financialHealthScore").value as? Long)?.toInt()
+                                    ?: (child.child("healthScore").value as? Long)?.toInt()
+                                    ?: 50
+
+                                val tName = child.child("tierName").getValue(String::class.java)
+                                    ?: com.example.model.UserLevelTier.getTierForXp(xp).displayName
+                                val tEmoji = child.child("tierEmoji").getValue(String::class.java)
+                                    ?: com.example.model.UserLevelTier.getTierForXp(xp).emoji
+
+                                com.example.model.LeaderboardEntry(
+                                    userId = key,
+                                    handleName = name,
+                                    avatarSeed = (key.hashCode() and 0x7FFFFFFF) % 10 + 1,
+                                    xpPoints = xp,
+                                    tierName = tName,
+                                    tierEmoji = tEmoji,
+                                    financialHealthScore = health
+                                )
+                            }
+
+                            if (entry.userId.isNotBlank()) {
                                 list.add(entry)
                             }
                         } catch (e: Exception) {
-                            Log.e("ExpenseRepo", "Error parsing leaderboard entry", e)
+                            Log.e("ExpenseRepo", "Error parsing leaderboard entry from RTDB", e)
                         }
                     }
                 }
 
                 val activeUid = getActiveUserId()
+                val userXp = prefs.getInt("cached_user_xp_$activeUid", 0)
+                val userTier = com.example.model.UserLevelTier.getTierForXp(userXp)
+                val userName = prefs.getString("cached_user_name_$activeUid", "You") ?: "You"
+
+                // Ensure active user entry is present in list
+                if (list.none { it.userId == activeUid }) {
+                    val currentUserEntry = com.example.model.LeaderboardEntry(
+                        userId = activeUid,
+                        handleName = if (userName != "User" && userName.isNotBlank()) userName else "Saver_${activeUid.takeLast(4)}",
+                        avatarSeed = (activeUid.hashCode() and 0x7FFFFFFF) % 10 + 1,
+                        xpPoints = userXp,
+                        tierName = userTier.displayName,
+                        tierEmoji = userTier.emoji,
+                        financialHealthScore = 75,
+                        isCurrentUser = true
+                    )
+                    list.add(currentUserEntry)
+                    database.reference.child("leaderboard_ranks").child(activeUid).setValue(currentUserEntry)
+                }
+
                 val sorted = list.sortedByDescending { it.xpPoints }.mapIndexed { index, item ->
                     item.copy(
                         rank = index + 1,
@@ -504,10 +602,14 @@ class ExpenseRepository(private val context: Context) {
             xpPoints = xp,
             tierName = tier.displayName,
             tierEmoji = tier.emoji,
-            financialHealthScore = healthScore
+            financialHealthScore = healthScore,
+            isCurrentUser = true
         )
 
         prefs.edit().putInt("cached_user_xp_$uid", xp).apply()
+        prefs.edit().putString("cached_user_name_$uid", handle).apply()
+
+        // Pure RTDB write
         rtdb?.reference?.child("leaderboard_ranks")?.child(uid)?.setValue(entry)
     }
 
@@ -555,6 +657,29 @@ class ExpenseRepository(private val context: Context) {
             timestamp = System.currentTimeMillis()
         )
         saveTransaction(duplicated, onSuccess = onSuccess)
+    }
+
+    fun toggleTransactionType(userId: String, transactionId: String, onSuccess: (Transaction) -> Unit = {}) {
+        val uid = userId.ifEmpty { getActiveUserId() }
+        val currentList = _localTransactions.value.toMutableList()
+        val index = currentList.indexOfFirst { it.id == transactionId }
+        if (index >= 0) {
+            val old = currentList[index]
+            val newType = if (old.isExpense()) Transaction.TYPE_INCOME else Transaction.TYPE_EXPENSE
+            val newTitle = if (newType == Transaction.TYPE_EXPENSE && old.title.equals("Money Received", ignoreCase = true)) {
+                if (old.sender.isNotEmpty()) {
+                    val clean = old.sender.substringAfter("-").substringBefore("-").ifEmpty { "Expense" }
+                    "$clean Purchase"
+                } else "Expense"
+            } else if (newType == Transaction.TYPE_INCOME && old.title.contains("Purchase", ignoreCase = true)) {
+                "Income / Refund"
+            } else old.title
+            val updated = old.copy(type = newType, title = newTitle)
+            currentList[index] = updated
+            persistLocalTransactions(uid, currentList)
+            rtdb?.reference?.child("users")?.child(uid)?.child("transactions")?.child(transactionId)?.setValue(updated)
+            onSuccess(updated)
+        }
     }
 
     fun deleteTransaction(userId: String, transactionId: String, onSuccess: () -> Unit = {}) {
