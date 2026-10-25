@@ -1,5 +1,5 @@
 *.iml
-.gradle
+.gradle/
 /local.properties
 /.idea/
 .DS_Store
@@ -8,6 +8,15 @@
 /captures
 .externalNativeBuild
 .cxx
+*.apk
+*.aab
+*.ap_
+*.dex
 *.apk.tmp
+release_apk/
+output_apk/
+.build-outputs/
+.kotlin/
 .env
 /app/.env
+

@@ -82,8 +82,10 @@ jobs:
           echo "Found APK at: $APK_FILE"
           mkdir -p output_apk
           mkdir -p public
+          mkdir -p docs
           cp "$APK_FILE" output_apk/Pockethome-debug.apk
           cp "$APK_FILE" public/pockethome.apk
+          cp "$APK_FILE" docs/pockethome.apk
           echo "apk_path=output_apk/Pockethome-debug.apk" >> $GITHUB_OUTPUT
 
       - name: Upload Debug APK as GitHub Artifact
