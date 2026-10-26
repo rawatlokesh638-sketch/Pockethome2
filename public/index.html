@@ -537,14 +537,26 @@
                 if (window.updateRechartsDonut) window.updateRechartsDonut(txList);
             });
 
-            // Listen to pro status
-            const proRef = ref(db, `users/${uid}/proStatus`);
-            onValue(proRef, (snapshot) => {
+            // Listen to pro status (both proStatus and pro_status for web/android compatibility)
+            const proRefCamel = ref(db, `users/${uid}/proStatus`);
+            const proRefSnake = ref(db, `users/${uid}/pro_status`);
+            const handleProSnap = (snapshot) => {
                 const ps = snapshot.val();
                 if (ps && (ps.isPro || ps.status === 'ACTIVE')) {
                     document.getElementById('userProBadge').classList.remove('hidden');
-                } else {
-                    document.getElementById('userProBadge').classList.add('hidden');
+                }
+            };
+            onValue(proRefCamel, handleProSnap);
+            onValue(proRefSnake, handleProSnap);
+
+            // Listen to budget
+            const currentMonthStr = new Date().toISOString().slice(0, 7);
+            const budgetRef = ref(db, `users/${uid}/budgets/${currentMonthStr}`);
+            onValue(budgetRef, (snapshot) => {
+                const b = snapshot.val();
+                if (b && b.monthlyBudget) {
+                    const mb = Number(b.monthlyBudget);
+                    document.getElementById('statBudget').innerText = '₹' + mb.toLocaleString('en-IN');
                 }
             });
 
@@ -844,16 +856,33 @@
                 return;
             }
 
-            const reqRef = ref(db, `proRequests/${currentUser.uid}`);
-            await set(reqRef, {
+            const reqData = {
                 userId: currentUser.uid,
                 userEmail: currentUser.email || '',
+                userName: currentUser.displayName || currentUser.email?.split('@')[0] || 'User',
                 txnId: txn,
                 utrNumber: utr,
                 amount: "15",
+                planPeriod: "MONTHLY",
+                durationDays: 30,
                 status: "PENDING",
                 requestedAt: Date.now()
-            });
+            };
+
+            const pendingStatus = {
+                isPro: false,
+                status: "PENDING",
+                planPeriod: "MONTHLY",
+                durationDays: 30,
+                requestedAt: Date.now()
+            };
+
+            // Dual write to both camelCase and snake_case for full Web/Android compatibility
+            await set(ref(db, `proRequests/${currentUser.uid}`), reqData);
+            await set(ref(db, `pro_requests/${currentUser.uid}`), reqData);
+            await push(ref(db, `pro_requests_history`), reqData);
+            await set(ref(db, `users/${currentUser.uid}/proStatus`), pendingStatus);
+            await set(ref(db, `users/${currentUser.uid}/pro_status`), pendingStatus);
 
             alert('✅ Payment request submitted! Admin team verify karke approve kar degi.');
             window.closeProModal();

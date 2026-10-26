@@ -251,8 +251,11 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
             if (loggedIn) {
                 _authMode.value = AuthMode.DASHBOARD
                 _activeUserId.value = user!!.uid
-                _localUserName.value = user.displayName ?: user.email?.substringBefore("@") ?: "User"
+                val name = user.displayName ?: user.email?.substringBefore("@") ?: "User"
+                val email = user.email ?: ""
+                _localUserName.value = name
                 repository.onUserChanged(user.uid)
+                repository.syncUserProfile(user.uid, name, email)
             } else {
                 _authMode.value = AuthMode.LOGIN
                 _activeUserId.value = ""

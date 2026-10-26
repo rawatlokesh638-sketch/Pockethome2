@@ -309,12 +309,21 @@ class ExpenseRepository(private val context: Context) {
     }
 
     private fun persistLocalProStatus(userId: String, proStatus: ProStatus) {
+        val uid = userId.ifEmpty { getActiveUserId() }
         _localProStatus.value = proStatus
         try {
-            val key = if (userId.isNotEmpty()) "cached_pro_status_$userId" else "cached_pro_status"
+            val key = if (uid.isNotEmpty()) "cached_pro_status_$uid" else "cached_pro_status"
             prefs.edit().putString(key, proStatusAdapter.toJson(proStatus)).apply()
         } catch (e: Throwable) {
             Log.e("ExpenseRepo", "Error persisting pro status", e)
+        }
+        if (uid.isNotEmpty()) {
+            try {
+                rtdb?.reference?.child("users")?.child(uid)?.child("pro_status")?.setValue(proStatus)
+                rtdb?.reference?.child("users")?.child(uid)?.child("proStatus")?.setValue(proStatus)
+            } catch (e: Throwable) {
+                Log.w("ExpenseRepo", "Failed to sync pro status to RTDB: ${e.message}")
+            }
         }
     }
 
@@ -475,6 +484,36 @@ class ExpenseRepository(private val context: Context) {
         }
         userRef.child("pro_status").addValueEventListener(proStatusListener!!)
 
+        // Chat Sessions Listener
+        chatSessionsListener?.let { userRef.child("chat_sessions").removeEventListener(it) }
+        chatSessionsListener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                if (snapshot.exists()) {
+                    val sessions = mutableListOf<com.example.model.AiChatSession>()
+                    snapshot.children.forEach { child ->
+                        try {
+                            child.getValue(com.example.model.AiChatSession::class.java)?.let {
+                                sessions.add(it)
+                            }
+                        } catch (e: Exception) {
+                            Log.e("ExpenseRepo", "Error parsing chat session from RTDB", e)
+                        }
+                    }
+                    if (sessions.isNotEmpty()) {
+                        _chatSessions.value = sessions
+                        val activeId = _activeSessionId.value.ifEmpty { sessions.first().id }
+                        _activeSessionId.value = activeId
+                        val activeSession = sessions.firstOrNull { it.id == activeId } ?: sessions.first()
+                        _chatMessages.value = activeSession.messages
+                    }
+                }
+            }
+            override fun onCancelled(error: DatabaseError) {
+                Log.w("ExpenseRepo", "RTDB chat sessions listen cancelled: ${error.message}")
+            }
+        }
+        userRef.child("chat_sessions").addValueEventListener(chatSessionsListener!!)
+
         // Leaderboard Listener - 100% Pure Realtime Database Read & Write
         leaderboardListener?.let { database.reference.child("leaderboard_ranks").removeEventListener(it) }
         leaderboardListener = object : ValueEventListener {
@@ -550,7 +589,11 @@ class ExpenseRepository(private val context: Context) {
                         isCurrentUser = true
                     )
                     list.add(currentUserEntry)
-                    database.reference.child("leaderboard_ranks").child(activeUid).setValue(currentUserEntry)
+                    try {
+                        database.reference.child("leaderboard_ranks").child(activeUid).setValue(currentUserEntry)
+                    } catch (e: Exception) {
+                        Log.w("ExpenseRepo", "Could not write leaderboard rank: ${e.message}")
+                    }
                 }
 
                 val sorted = list.sortedByDescending { it.xpPoints }.mapIndexed { index, item ->
@@ -564,9 +607,47 @@ class ExpenseRepository(private val context: Context) {
 
             override fun onCancelled(error: DatabaseError) {
                 Log.w("ExpenseRepo", "RTDB leaderboard listen cancelled: ${error.message}")
+                // Fallback for current user
+                val activeUid = getActiveUserId()
+                val userXp = prefs.getInt("cached_user_xp_$activeUid", 0)
+                val userTier = com.example.model.UserLevelTier.getTierForXp(userXp)
+                val userName = prefs.getString("cached_user_name_$activeUid", "You") ?: "You"
+                val currentUserEntry = com.example.model.LeaderboardEntry(
+                    userId = activeUid,
+                    handleName = if (userName != "User" && userName.isNotBlank()) userName else "Saver_${activeUid.takeLast(4)}",
+                    avatarSeed = (activeUid.hashCode() and 0x7FFFFFFF) % 10 + 1,
+                    xpPoints = userXp,
+                    tierName = userTier.displayName,
+                    tierEmoji = userTier.emoji,
+                    financialHealthScore = 75,
+                    isCurrentUser = true,
+                    rank = 1
+                )
+                if (_leaderboardEntries.value.isEmpty()) {
+                    _leaderboardEntries.value = listOf(currentUserEntry)
+                }
             }
         }
-        database.reference.child("leaderboard_ranks").addValueEventListener(leaderboardListener!!)
+        try {
+            database.reference.child("leaderboard_ranks").addValueEventListener(leaderboardListener!!)
+        } catch (e: Exception) {
+            Log.w("ExpenseRepo", "Could not add listener to leaderboard_ranks: ${e.message}")
+        }
+    }
+
+    fun syncUserProfile(userId: String, name: String, email: String) {
+        val uid = userId.ifEmpty { getActiveUserId() }
+        val profileData = mapOf(
+            "uid" to uid,
+            "displayName" to name,
+            "email" to email,
+            "lastActive" to System.currentTimeMillis()
+        )
+        try {
+            rtdb?.reference?.child("users")?.child(uid)?.child("profile")?.updateChildren(profileData)
+        } catch (e: Exception) {
+            Log.w("ExpenseRepo", "Failed to sync user profile: ${e.message}")
+        }
     }
 
     fun observeTransactions(userId: String = ""): Flow<List<Transaction>> {
@@ -610,7 +691,12 @@ class ExpenseRepository(private val context: Context) {
         prefs.edit().putString("cached_user_name_$uid", handle).apply()
 
         // Pure RTDB write
-        rtdb?.reference?.child("leaderboard_ranks")?.child(uid)?.setValue(entry)
+        try {
+            rtdb?.reference?.child("leaderboard_ranks")?.child(uid)?.setValue(entry)
+            rtdb?.reference?.child("users")?.child(uid)?.child("leaderboard_entry")?.setValue(entry)
+        } catch (e: Exception) {
+            Log.w("ExpenseRepo", "Failed to write leaderboard entry to RTDB: ${e.message}")
+        }
     }
 
     fun saveTransaction(transaction: Transaction, onSuccess: () -> Unit = {}, onFailure: (Exception) -> Unit = {}) {
@@ -785,9 +871,15 @@ class ExpenseRepository(private val context: Context) {
                 durationDays = days,
                 requestedAt = System.currentTimeMillis()
             )
-            db.reference.child("pro_requests").child(userId).setValue(reqData)
-            db.reference.child("pro_requests_history").push().setValue(reqData)
-            db.reference.child("users").child(userId).child("pro_status").setValue(pendingStatus)
+            try {
+                db.reference.child("pro_requests").child(userId).setValue(reqData)
+                db.reference.child("proRequests").child(userId).setValue(reqData)
+                db.reference.child("pro_requests_history").push().setValue(reqData)
+                db.reference.child("users").child(userId).child("pro_status").setValue(pendingStatus)
+                db.reference.child("users").child(userId).child("proStatus").setValue(pendingStatus)
+            } catch (e: Exception) {
+                Log.w("ExpenseRepo", "Failed to submit pro request to RTDB: ${e.message}")
+            }
         }
     }
 
@@ -808,7 +900,14 @@ class ExpenseRepository(private val context: Context) {
             val json = chatSessionListAdapter.toJson(sessions)
             prefs.edit().putString("ai_chat_sessions_$uid", json).apply()
         } catch (e: Throwable) {
-            Log.e("ExpenseRepo", "Failed to persist chat sessions", e)
+            Log.e("ExpenseRepo", "Failed to persist chat sessions locally", e)
+        }
+        // Write to RTDB under both users/$uid/chat_sessions and users/$uid/chatSessions
+        try {
+            rtdb?.reference?.child("users")?.child(uid)?.child("chat_sessions")?.setValue(sessions)
+            rtdb?.reference?.child("users")?.child(uid)?.child("chatSessions")?.setValue(sessions)
+        } catch (e: Throwable) {
+            Log.w("ExpenseRepo", "Failed to persist chat sessions to RTDB: ${e.message}")
         }
     }
 
