@@ -44,14 +44,30 @@ jobs:
           echo "Found Gradle project in: $PROJECT_DIR"
           echo "project_dir=$PROJECT_DIR" >> $GITHUB_OUTPUT
 
-      - name: Ensure Debug Keystore Exists
+      - name: Ensure Keystores Exist (Release and Debug)
         run: |
           PROJECT_DIR="${{ steps.locate_dir.outputs.project_dir }}"
+          # Debug keystore
           if [ ! -f "$PROJECT_DIR/debug.keystore" ]; then
-            echo "Generating debug.keystore in $PROJECT_DIR..."
-            keytool -genkey -v -keystore "$PROJECT_DIR/debug.keystore" -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+            if [ -f "$PROJECT_DIR/debug.keystore.base64" ]; then
+              echo "Decoding debug.keystore from base64..."
+              base64 -d "$PROJECT_DIR/debug.keystore.base64" > "$PROJECT_DIR/debug.keystore"
+            else
+              echo "Generating debug.keystore..."
+              keytool -genkey -v -keystore "$PROJECT_DIR/debug.keystore" -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+            fi
+          fi
+          # Release keystore (my-upload-key.jks)
+          if [ ! -f "$PROJECT_DIR/my-upload-key.jks" ]; then
+            if [ -f "$PROJECT_DIR/my-upload-key.jks.base64" ]; then
+              echo "Decoding my-upload-key.jks from base64..."
+              base64 -d "$PROJECT_DIR/my-upload-key.jks.base64" > "$PROJECT_DIR/my-upload-key.jks"
+            else
+              echo "Generating release keystore in $PROJECT_DIR..."
+              keytool -genkey -v -keystore "$PROJECT_DIR/my-upload-key.jks" -storepass 'Pk#9xL@2026$PocketHome!Key' -alias upload -keypass 'Pk#9xL@2026$PocketHome!Key' -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=PocketHome, OU=PocketHome, O=PocketHome, L=Delhi, ST=Delhi, C=IN"
+            fi
           else
-            echo "debug.keystore already exists."
+            echo "Release keystore my-upload-key.jks already exists."
           fi
 
       - name: Make Gradlew Executable
@@ -66,53 +82,78 @@ jobs:
             chmod +x gradlew
           fi
 
-      - name: Build Debug APK with Gradle
+      - name: Build Release and Debug APKs with Gradle
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD || 'Pk#9xL@2026$PocketHome!Key' }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD || 'Pk#9xL@2026$PocketHome!Key' }}
+          KEYSTORE_PATH: ${{ steps.locate_dir.outputs.project_dir }}/my-upload-key.jks
         run: |
           PROJECT_DIR="${{ steps.locate_dir.outputs.project_dir }}"
           cd "$PROJECT_DIR"
-          ./gradlew assembleDebug --no-daemon --stacktrace
+          ./gradlew assembleRelease assembleDebug --no-daemon --stacktrace
 
-      - name: Locate and Prepare APK for Website & Releases
+      - name: Locate and Prepare APKs for Website & Releases
         id: prepare_apk
         run: |
-          APK_FILE=$(find . -name "*.apk" -type f | grep -E "debug|app-debug" | head -n 1)
-          if [ -z "$APK_FILE" ]; then
-            APK_FILE=$(find . -name "*.apk" -type f | head -n 1)
-          fi
-          echo "Found APK at: $APK_FILE"
           mkdir -p output_apk
           mkdir -p public
           mkdir -p docs
-          cp "$APK_FILE" output_apk/Pockethome-debug.apk
-          cp "$APK_FILE" public/pockethome.apk
-          cp "$APK_FILE" docs/pockethome.apk
-          echo "apk_path=output_apk/Pockethome-debug.apk" >> $GITHUB_OUTPUT
+
+          # Locate Release APK
+          RELEASE_APK=$(find . -name "*release*.apk" -type f | head -n 1)
+          if [ -n "$RELEASE_APK" ] && [ -f "$RELEASE_APK" ]; then
+            echo "Found Release APK at: $RELEASE_APK"
+            cp "$RELEASE_APK" output_apk/Pockethome-release.apk
+            cp "$RELEASE_APK" public/pockethome.apk
+            cp "$RELEASE_APK" docs/pockethome.apk
+            echo "release_apk=output_apk/Pockethome-release.apk" >> $GITHUB_OUTPUT
+          else
+            echo "WARNING: Release APK not found!"
+          fi
+
+          # Locate Debug APK
+          DEBUG_APK=$(find . -name "*debug*.apk" -type f | head -n 1)
+          if [ -n "$DEBUG_APK" ] && [ -f "$DEBUG_APK" ]; then
+            echo "Found Debug APK at: $DEBUG_APK"
+            cp "$DEBUG_APK" output_apk/Pockethome-debug.apk
+            echo "debug_apk=output_apk/Pockethome-debug.apk" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload Release APK as GitHub Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Pockethome-release-apk
+          path: output_apk/Pockethome-release.apk
+          if-no-files-found: error
+          retention-days: 30
 
       - name: Upload Debug APK as GitHub Artifact
         uses: actions/upload-artifact@v4
         with:
           name: Pockethome-debug-apk
           path: output_apk/Pockethome-debug.apk
-          if-no-files-found: error
-          retention-days: 30
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: Create GitHub Release with Direct APK Download
         if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: build-v${{ github.run_number }}
-          name: Pockethome Android App v1.0 (Build #${{ github.run_number }})
+          tag_name: v1.0.${{ github.run_number }}
+          name: Pockethome Release v1.0 (Build #${{ github.run_number }})
           body: |
             ### 📱 Pockethome - Smart Indian Home Expense Tracker & AI Money Growth
 
-            Download the standalone APK directly below to install on your mobile phone without unzipping:
+            Download the APK files directly below:
 
-            - **File**: `Pockethome-debug.apk`
+            - 🚀 **Release Signed APK (Recommended)**: `Pockethome-release.apk` (Signed with upload key, ready for install & production)
+            - 🛠️ **Debug APK**: `Pockethome-debug.apk`
             - **Commit**: `${{ github.sha }}`
             - **Build**: `#${{ github.run_number }}`
-          files: output_apk/Pockethome-debug.apk
+          files: |
+            output_apk/Pockethome-release.apk
+            output_apk/Pockethome-debug.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: true
