@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.LocationOn
@@ -100,9 +101,68 @@ fun HomeScreen(
     onOpenSmartAdd: () -> Unit = {},
     onOpenPrivacyPolicy: () -> Unit = {},
     onLogout: () -> Unit,
+    onDeleteAccount: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var showLogoutConfirm by remember { mutableStateOf(false) }
+    var showDeleteAccountConfirm by remember { mutableStateOf(false) }
+
+    if (showDeleteAccountConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteAccountConfirm = false },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.DeleteForever,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(36.dp)
+                )
+            },
+            title = {
+                Text(
+                    text = "Delete Account Permanently?",
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.error
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Kya aap sach me apna account aur sara data humesha ke liye delete karna chahte hain?",
+                        fontWeight = FontWeight.SemiBold,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Text(
+                        text = "• Sabhi kharche (expenses), aay (income) aur bills delete ho jayenge.\n• Monthly budget aur AI chat sessions permanently wipe ho jayenge.\n• Leaderboard score aur rank hat jayegi.\n• Aapka Firebase login account delete ho jayega.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "⚠️ Yeh action wapas nahi ho sakta (Irreversible).",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showDeleteAccountConfirm = false
+                        onDeleteAccount()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                    modifier = Modifier.testTag("confirm_delete_account_button")
+                ) {
+                    Text("Delete Permanently (हटाएं)", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showDeleteAccountConfirm = false }) {
+                    Text("Cancel (रद्द करें)")
+                }
+            }
+        )
+    }
 
     if (showLogoutConfirm) {
         val isPro = proStatus.isPro || proStatus.status == "ACTIVE"
@@ -124,7 +184,7 @@ fun HomeScreen(
             text = { 
                 Column {
                     Text(text = "User: ${uiState.userName}", fontWeight = FontWeight.Bold)
-                    Text(text = "Email: ${Firebase.auth.currentUser?.email ?: "N/A"}", style = MaterialTheme.typography.bodySmall)
+                    Text(text = "Email: ${Firebase.auth.currentUser?.email ?: "Guest User"}", style = MaterialTheme.typography.bodySmall)
                     Spacer(modifier = Modifier.height(8.dp))
                     Surface(
                         shape = RoundedCornerShape(8.dp),
@@ -138,7 +198,27 @@ fun HomeScreen(
                         )
                     }
                     Spacer(modifier = Modifier.height(16.dp))
-                    Text(text = "Are you sure you want to logout?")
+                    HorizontalDivider()
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "Account Actions:",
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    OutlinedButton(
+                        onClick = {
+                            showLogoutConfirm = false
+                            showDeleteAccountConfirm = true
+                        },
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error
+                        ),
+                        modifier = Modifier.fillMaxWidth().testTag("delete_account_trigger_button")
+                    ) {
+                        Icon(imageVector = Icons.Default.DeleteForever, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Delete Account & All Data 🗑️", fontWeight = FontWeight.Bold)
+                    }
                 }
             },
             confirmButton = {
@@ -146,12 +226,12 @@ fun HomeScreen(
                     onLogout()
                     showLogoutConfirm = false
                 }) {
-                    Text(text = "Logout", color = Color.Red)
+                    Text(text = "Logout", color = Color.Red, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showLogoutConfirm = false }) {
-                    Text(text = "Cancel")
+                    Text(text = "Close")
                 }
             }
         )
@@ -455,18 +535,19 @@ fun HomeScreen(
             }
         }
 
-        // 12. "Reset All Data to 0" Button
+        // 12. "Reset All Data to 0" and "Delete Account & Data" Buttons
         item(key = "reset_section") {
-            Box(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp, vertical = 6.dp),
-                contentAlignment = Alignment.Center
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 OutlinedButton(
                     onClick = onClearAllData,
                     shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.testTag("reset_all_data_button")
+                    modifier = Modifier.fillMaxWidth().testTag("reset_all_data_button")
                 ) {
                     Icon(
                         imageVector = Icons.Default.DeleteSweep,
@@ -477,6 +558,24 @@ fun HomeScreen(
                     Text(
                         text = "Reset All Data to 0 (Sara Data 0 Karein)",
                         style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold)
+                    )
+                }
+
+                TextButton(
+                    onClick = { showDeleteAccountConfirm = true },
+                    modifier = Modifier.testTag("footer_delete_account_button")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.DeleteForever,
+                        contentDescription = "Delete Account",
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(15.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Delete Account & Wipe All Data (खाता हटाएं)",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)
                     )
                 }
             }

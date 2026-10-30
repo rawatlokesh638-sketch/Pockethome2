@@ -132,7 +132,19 @@ class ExpenseRepository(private val context: Context) {
     }
 
     fun onUserChanged(userId: String) {
+        if (currentUserId.isNotEmpty() && currentUserId != userId) {
+            detachRtdbListeners()
+        }
         currentUserId = userId
+
+        // Immediately wipe state flows so previous user's data never leaks
+        _localTransactions.value = emptyList()
+        _localBills.value = emptyList()
+        _localBudget.value = Budget()
+        _localProStatus.value = ProStatus()
+        _chatSessions.value = emptyList()
+        _chatMessages.value = emptyList()
+
         loadLocalCacheForUser(userId)
         attachRtdbListeners(userId)
     }
@@ -144,6 +156,8 @@ class ExpenseRepository(private val context: Context) {
         _localBills.value = emptyList()
         _localBudget.value = Budget()
         _localProStatus.value = ProStatus()
+        _chatSessions.value = emptyList()
+        _chatMessages.value = emptyList()
     }
 
     private fun detachRtdbListeners() {
@@ -891,6 +905,74 @@ class ExpenseRepository(private val context: Context) {
         onComplete()
 
         rtdb?.reference?.child("users")?.child(userId)?.removeValue()
+    }
+
+    fun deleteAccountAndData(
+        userId: String,
+        onComplete: () -> Unit,
+        onError: (Exception) -> Unit
+    ) {
+        val uid = userId.ifEmpty { getActiveUserId() }
+        detachRtdbListeners()
+
+        // 1. Immediately wipe in-memory StateFlows
+        _localTransactions.value = emptyList()
+        _localBills.value = emptyList()
+        _localBudget.value = Budget()
+        _localProStatus.value = ProStatus()
+        _chatSessions.value = emptyList()
+        _chatMessages.value = emptyList()
+        currentUserId = ""
+
+        // 2. Clear all local SharedPreferences for this user
+        try {
+            prefs.edit()
+                .remove("cached_transactions_$uid")
+                .remove("cached_bills_$uid")
+                .remove("cached_budget_$uid")
+                .remove("cached_pro_status_$uid")
+                .remove("cached_user_xp_$uid")
+                .remove("cached_user_name_$uid")
+                .remove("ai_chat_sessions_$uid")
+                .remove("ai_chat_history_$uid")
+                .remove("local_household_id")
+                .apply()
+        } catch (e: Exception) {
+            Log.w("ExpenseRepo", "Failed to clear prefs for $uid: ${e.message}")
+        }
+
+        // 3. Remove all remote RTDB entries for this user
+        try {
+            rtdb?.reference?.child("users")?.child(uid)?.removeValue()
+            rtdb?.reference?.child("leaderboard_ranks")?.child(uid)?.removeValue()
+            rtdb?.reference?.child("pro_requests")?.child(uid)?.removeValue()
+            rtdb?.reference?.child("proRequests")?.child(uid)?.removeValue()
+        } catch (e: Exception) {
+            Log.w("ExpenseRepo", "Failed to remove RTDB nodes for $uid: ${e.message}")
+        }
+
+        // 4. Delete Firebase Auth user if authenticated
+        val authUser = try { Firebase.auth.currentUser } catch (e: Throwable) { null }
+        if (authUser != null) {
+            authUser.delete()
+                .addOnSuccessListener {
+                    Log.d("ExpenseRepo", "Firebase auth user deleted successfully")
+                    onComplete()
+                }
+                .addOnFailureListener { err ->
+                    Log.w("ExpenseRepo", "Firebase auth user deletion failed: ${err.message}. Signing out.")
+                    try { Firebase.auth.signOut() } catch (_: Exception) {}
+                    if (err is com.google.firebase.auth.FirebaseAuthRecentLoginRequiredException) {
+                        onError(err)
+                    } else {
+                        // All RTDB and local data is already purged, treat as completed
+                        onComplete()
+                    }
+                }
+        } else {
+            try { Firebase.auth.signOut() } catch (_: Exception) {}
+            onComplete()
+        }
     }
 
     private fun persistChatSessions(userId: String, sessions: List<com.example.model.AiChatSession>) {

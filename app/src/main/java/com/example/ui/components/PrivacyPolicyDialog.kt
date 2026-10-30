@@ -182,18 +182,23 @@ fun PrivacyPolicyDialog(
                     }
 
                     PolicySection(
-                        title = "5. User Control & Data Deletion (Aapka Poora Niyantran)",
-                        body = "Aapka apne data par 100% adhikar hai. Aap kisi bhi samay Home Screen par diye gaye 'Reset All Data to 0' button se apna sara data delete kar sakte hain ya Android settings me jaakar SMS permissions ko band kar sakte hain."
+                        title = "5. In-App Account & Data Deletion (Aapka Poora Niyantran)",
+                        body = "Aapka apne data par 100% poora adhikar hai. Aap kisi bhi samay:\n• Profile Avatar par tap karke 'Delete Account & All Data' chun sakte hain.\n• Home screen ke footer me 'Delete Account & Wipe All Data' par click karke turant apna sara data (expenses, bills, budget, leaderboard, chat) aur Firebase account permanently delete kar sakte hain.\n• 'Reset All Data to 0' button se sara hisaab zero kar sakte hain."
                     )
 
                     PolicySection(
-                        title = "6. Terms of Conditions (Niyam evam Shartein)",
-                        body = "• Yah app vyaktigat (personal) aur parivarik kharche ke hisaab-kitab ke liye banayi gayi hai.\n• App me diye gaye financial health score aur AI insights keval sahayata ke liye hain.\n• Pro membership aur AI token features personal use ke liye upalabdh hain."
+                        title = "6. Online Account Deletion Request (Right to Erasure)",
+                        body = "App store niyam aur data protection adhiniyam ke tehat, yadi aap app uninstall kar chuke hain aur apna account/data delete karwana chahte hain, toh aap hamare support email:\n📧 rawatlokesh638@gmail.com\npar 'Delete My Account' subject ke saath apna registered email bhej sakte hain. Aapka sara data 24 se 48 ghante ke andar permanently wipe kar diya jata hai."
                     )
 
                     PolicySection(
-                        title = "7. Contact & Queries (Sampark)",
-                        body = "Yadi aapka privacy policy, data suraksha ya app ke kisi feature se sambandhit koi bhi prashn ya sujhav hai, toh aap hamare help email par sidhe sampark kar sakte hain:\n📧 rawatlokesh638@gmail.com"
+                        title = "7. Terms of Conditions (Niyam evam Shartein)",
+                        body = "• Yah app vyaktigat (personal) aur parivarik kharche ke hisaab-kitab ke liye banayi gayi hai.\n• App me diye gaye financial health score aur AI insights keval sahayata ke liye hain.\n• Pro membership aur AI features fair-use policy ke tahat hain."
+                    )
+
+                    PolicySection(
+                        title = "8. Developer & Store Contact (Sampark)",
+                        body = "Official Developer Contact for Store Inquiries, Grievance Officer & Help Support:\n📧 rawatlokesh638@gmail.com\nDeveloper: Lokesh Rawat | App: PocketHome"
                     )
                 }
 

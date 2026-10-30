@@ -117,489 +117,473 @@ fun TransactionsScreen(
             }
         }
     ) { innerPadding ->
-        Column(
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
+                .padding(innerPadding),
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 120.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // 1. Screen Header
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 10.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text(
-                        text = "Expense Management",
-                        style = MaterialTheme.typography.titleLarge.copy(
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 22.sp
-                        ),
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = "Kharch aur aamadani ka poora hisaab-kitaab",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                // Sort Dropdown Button
-                Box {
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
-                        modifier = Modifier.clickable { showSortMenu = true }
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Sort,
-                                contentDescription = "Sort",
-                                modifier = Modifier.size(16.dp),
-                                tint = BrandOrange
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "Sort",
-                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
+            // 1. Screen Header & Sort
+            item(key = "tx_header") {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "Expense Management",
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 22.sp
+                            ),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "Kharch aur aamadani ka poora hisaab-kitaab",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
 
-                    DropdownMenu(
-                        expanded = showSortMenu,
-                        onDismissRequest = { showSortMenu = false }
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text("Date: Newest First") },
-                            onClick = {
-                                onSortChanged(SortOption.DATE_DESC)
-                                showSortMenu = false
+                    // Sort Dropdown Button
+                    Box {
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                            modifier = Modifier.clickable { showSortMenu = true }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Sort,
+                                    contentDescription = "Sort",
+                                    modifier = Modifier.size(16.dp),
+                                    tint = BrandOrange
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Sort",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
                             }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Date: Oldest First") },
-                            onClick = {
-                                onSortChanged(SortOption.DATE_ASC)
-                                showSortMenu = false
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Amount: High to Low") },
-                            onClick = {
-                                onSortChanged(SortOption.AMOUNT_DESC)
-                                showSortMenu = false
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Amount: Low to High") },
-                            onClick = {
-                                onSortChanged(SortOption.AMOUNT_ASC)
-                                showSortMenu = false
-                            }
-                        )
+                        }
+
+                        DropdownMenu(
+                            expanded = showSortMenu,
+                            onDismissRequest = { showSortMenu = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Date: Newest First") },
+                                onClick = {
+                                    onSortChanged(SortOption.DATE_DESC)
+                                    showSortMenu = false
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Date: Oldest First") },
+                                onClick = {
+                                    onSortChanged(SortOption.DATE_ASC)
+                                    showSortMenu = false
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Amount: High to Low") },
+                                onClick = {
+                                    onSortChanged(SortOption.AMOUNT_DESC)
+                                    showSortMenu = false
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Amount: Low to High") },
+                                onClick = {
+                                    onSortChanged(SortOption.AMOUNT_ASC)
+                                    showSortMenu = false
+                                }
+                            )
+                        }
                     }
                 }
             }
 
             // 2. Type Filter Tabs: [ Sabhi (All) ] [ Kharcha (Expenses 💸) ] [ Kamai (Income 💰) ]
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                val typeFilters = listOf(
-                    Triple(TransactionTypeFilter.ALL, "Sabhi (All)", null),
-                    Triple(TransactionTypeFilter.EXPENSE, "Kharcha (Expense)", RosePrimary),
-                    Triple(TransactionTypeFilter.INCOME, "Kamai (Income)", EmeraldPrimary)
-                )
+            item(key = "tx_type_tabs") {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    val typeFilters = listOf(
+                        Triple(TransactionTypeFilter.ALL, "Sabhi (All)", null),
+                        Triple(TransactionTypeFilter.EXPENSE, "Kharcha (Expense)", RosePrimary),
+                        Triple(TransactionTypeFilter.INCOME, "Kamai (Income)", EmeraldPrimary)
+                    )
 
-                typeFilters.forEach { (type, label, accentColor) ->
-                    val isSelected = uiState.selectedTypeFilter == type
-                    val containerColor = when {
-                        isSelected && accentColor != null -> accentColor
-                        isSelected -> RoyalBlue
-                        else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                    }
-                    val textColor = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
+                    typeFilters.forEach { (type, label, accentColor) ->
+                        val isSelected = uiState.selectedTypeFilter == type
+                        val containerColor = when {
+                            isSelected && accentColor != null -> accentColor
+                            isSelected -> RoyalBlue
+                            else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                        }
+                        val textColor = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
 
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(containerColor)
-                            .clickable { onTypeFilterChanged(type) }
-                            .padding(vertical = 10.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = label,
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                fontSize = 11.sp
-                            ),
-                            color = textColor,
-                            maxLines = 1
-                        )
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(containerColor)
+                                .clickable { onTypeFilterChanged(type) }
+                                .padding(vertical = 10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = label,
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                    fontSize = 11.sp
+                                ),
+                                color = textColor,
+                                maxLines = 1
+                            )
+                        }
                     }
                 }
             }
-
-            Spacer(modifier = Modifier.height(8.dp))
 
             // 3. Upgraded Financial Summary Card (Side-by-Side Total Spent vs Total Income vs Net)
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp),
-                shape = RoundedCornerShape(18.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                ),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(14.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+            item(key = "tx_summary_card") {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                 ) {
-                    // Total Expense (Kharcha)
-                    Column(modifier = Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(20.dp)
-                                    .clip(CircleShape)
-                                    .background(RosePrimary.copy(alpha = 0.15f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.ArrowDownward,
-                                    contentDescription = null,
-                                    tint = RosePrimary,
-                                    modifier = Modifier.size(12.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "Kul Kharcha",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = DashboardViewModel.formatCurrency(uiState.filteredTotalExpenses),
-                            style = MaterialTheme.typography.titleMedium.copy(
-                                fontWeight = FontWeight.Bold,
-                                color = RosePrimary,
-                                fontSize = 16.sp
-                            )
-                        )
-                    }
-
-                    // Divider
-                    Box(
+                    Row(
                         modifier = Modifier
-                            .height(36.dp)
-                            .width(1.dp)
-                            .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-                    )
-
-                    // Total Income (Kamai)
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(horizontal = 10.dp)
+                            .fillMaxWidth()
+                            .padding(14.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(20.dp)
-                                    .clip(CircleShape)
-                                    .background(EmeraldPrimary.copy(alpha = 0.15f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.ArrowUpward,
-                                    contentDescription = null,
-                                    tint = EmeraldPrimary,
-                                    modifier = Modifier.size(12.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "Kul Kamai",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = DashboardViewModel.formatCurrency(uiState.filteredTotalIncome),
-                            style = MaterialTheme.typography.titleMedium.copy(
-                                fontWeight = FontWeight.Bold,
-                                color = EmeraldPrimary,
-                                fontSize = 16.sp
-                            )
-                        )
-                    }
-
-                    // Divider
-                    Box(
-                        modifier = Modifier
-                            .height(36.dp)
-                            .width(1.dp)
-                            .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-                    )
-
-                    // Count
-                    Column(
-                        modifier = Modifier.weight(0.9f),
-                        horizontalAlignment = Alignment.End
-                    ) {
-                        Text(
-                            text = "Hisaab Count",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = RoyalBlue.copy(alpha = 0.12f)
-                        ) {
-                            Text(
-                                text = "${uiState.filteredTransactions.size} Txns",
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                color = RoyalBlue
-                            )
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // 4. Search Bar
-            OutlinedTextField(
-                value = uiState.searchQuery,
-                onValueChange = onSearchChanged,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp)
-                    .testTag("tx_search_input"),
-                placeholder = { Text("Search by name, note, amount...") },
-                leadingIcon = {
-                    Icon(imageVector = Icons.Default.Search, contentDescription = "Search", modifier = Modifier.size(20.dp))
-                },
-                trailingIcon = {
-                    if (uiState.searchQuery.isNotEmpty()) {
-                        IconButton(onClick = { onSearchChanged("") }) {
-                            Icon(imageVector = Icons.Default.Clear, contentDescription = "Clear", modifier = Modifier.size(18.dp))
-                        }
-                    }
-                },
-                singleLine = true,
-                shape = RoundedCornerShape(14.dp),
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = MaterialTheme.colorScheme.surface,
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surface
-                )
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // 5. Filter Chips Row: [All] [This Month] [Category] [Payment]
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Date filter pills
-                FilterChip(
-                    selected = uiState.selectedDateFilter == DateFilterOption.ALL,
-                    onClick = { onDateFilterChanged(DateFilterOption.ALL) },
-                    label = { Text("All Dates") },
-                    shape = RoundedCornerShape(14.dp),
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = BrandOrange,
-                        selectedLabelColor = Color.White
-                    )
-                )
-
-                FilterChip(
-                    selected = uiState.selectedDateFilter == DateFilterOption.THIS_MONTH,
-                    onClick = { onDateFilterChanged(DateFilterOption.THIS_MONTH) },
-                    label = { Text("This Month") },
-                    shape = RoundedCornerShape(14.dp),
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = BrandOrange,
-                        selectedLabelColor = Color.White
-                    )
-                )
-
-                // Category Filter Dropdown
-                Box {
-                    Surface(
-                        shape = RoundedCornerShape(14.dp),
-                        color = if (uiState.selectedCategoryFilter != "ALL") BrandOrange else MaterialTheme.colorScheme.surfaceVariant,
-                        modifier = Modifier.clickable { showCategoryMenu = true }
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = if (uiState.selectedCategoryFilter == "ALL") "Category" else uiState.selectedCategoryFilter,
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    fontWeight = FontWeight.Medium,
-                                    color = if (uiState.selectedCategoryFilter != "ALL") Color.White else MaterialTheme.colorScheme.onSurface
-                                )
-                            )
-                        }
-                    }
-
-                    DropdownMenu(
-                        expanded = showCategoryMenu,
-                        onDismissRequest = { showCategoryMenu = false }
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text("All Categories") },
-                            onClick = {
-                                onCategoryFilterChanged("ALL")
-                                showCategoryMenu = false
-                            }
-                        )
-                        ExpenseCategories.EXPENSE_CATEGORIES.forEach { cat ->
-                            DropdownMenuItem(
-                                text = { Text(cat.name) },
-                                onClick = {
-                                    onCategoryFilterChanged(cat.name)
-                                    showCategoryMenu = false
+                        // Total Expense (Kharcha)
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(20.dp)
+                                        .clip(CircleShape)
+                                        .background(RosePrimary.copy(alpha = 0.15f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.ArrowDownward,
+                                        contentDescription = null,
+                                        tint = RosePrimary,
+                                        modifier = Modifier.size(12.dp)
+                                    )
                                 }
-                            )
-                        }
-                    }
-                }
-
-                // Payment Filter Dropdown
-                Box {
-                    Surface(
-                        shape = RoundedCornerShape(14.dp),
-                        color = if (uiState.selectedPaymentFilter != "ALL") BrandOrange else MaterialTheme.colorScheme.surfaceVariant,
-                        modifier = Modifier.clickable { showPaymentMenu = true }
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = if (uiState.selectedPaymentFilter == "ALL") "Payment" else uiState.selectedPaymentFilter,
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    fontWeight = FontWeight.Medium,
-                                    color = if (uiState.selectedPaymentFilter != "ALL") Color.White else MaterialTheme.colorScheme.onSurface
-                                )
-                            )
-                        }
-                    }
-
-                    DropdownMenu(
-                        expanded = showPaymentMenu,
-                        onDismissRequest = { showPaymentMenu = false }
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text("All Payments") },
-                            onClick = {
-                                onPaymentFilterChanged("ALL")
-                                showPaymentMenu = false
-                            }
-                        )
-                        ExpenseCategories.PAYMENT_METHODS.forEach { m ->
-                            DropdownMenuItem(
-                                text = { Text(m) },
-                                onClick = {
-                                    onPaymentFilterChanged(m)
-                                    showPaymentMenu = false
-                                }
-                            )
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // 6. Transactions List
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 20.dp),
-                contentPadding = PaddingValues(bottom = 120.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                if (uiState.filteredTransactions.isEmpty()) {
-                    item {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(18.dp),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(32.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center
-                            ) {
-                                Text("🧾", fontSize = 42.sp)
-                                Spacer(modifier = Modifier.height(8.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = "Koi hisaab nahi mila",
-                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "Naya kharcha ya aamadani jodne ke liye neeche button dabayein",
-                                    style = MaterialTheme.typography.bodySmall,
+                                    text = "Kul Kharcha",
+                                    style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
-                                Spacer(modifier = Modifier.height(14.dp))
-                                Button(
-                                    onClick = onAddExpenseClicked,
-                                    colors = ButtonDefaults.buttonColors(containerColor = BrandOrange),
-                                    shape = RoundedCornerShape(12.dp)
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = DashboardViewModel.formatCurrency(uiState.filteredTotalExpenses),
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = RosePrimary,
+                                    fontSize = 16.sp
+                                )
+                            )
+                        }
+
+                        // Divider
+                        Box(
+                            modifier = Modifier
+                                .height(36.dp)
+                                .width(1.dp)
+                                .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                        )
+
+                        // Total Income (Kamai)
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(horizontal = 10.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(20.dp)
+                                        .clip(CircleShape)
+                                        .background(EmeraldPrimary.copy(alpha = 0.15f)),
+                                    contentAlignment = Alignment.Center
                                 ) {
-                                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Add Kharcha / Income")
+                                    Icon(
+                                        imageVector = Icons.Default.ArrowUpward,
+                                        contentDescription = null,
+                                        tint = EmeraldPrimary,
+                                        modifier = Modifier.size(12.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Kul Kamai",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = DashboardViewModel.formatCurrency(uiState.filteredTotalIncome),
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = EmeraldPrimary,
+                                    fontSize = 16.sp
+                                )
+                            )
+                        }
+
+                        // Divider
+                        Box(
+                            modifier = Modifier
+                                .height(36.dp)
+                                .width(1.dp)
+                                .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                        )
+
+                        // Count
+                        Column(
+                            modifier = Modifier.weight(0.9f),
+                            horizontalAlignment = Alignment.End
+                        ) {
+                            Text(
+                                text = "Hisaab Count",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = RoyalBlue.copy(alpha = 0.12f)
+                            ) {
+                                Text(
+                                    text = "${uiState.filteredTransactions.size} Txns",
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = RoyalBlue
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 4. Search Bar & Filters Section
+            item(key = "tx_search_and_filters") {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = uiState.searchQuery,
+                        onValueChange = onSearchChanged,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("tx_search_input"),
+                        placeholder = { Text("Search by name, note, amount...") },
+                        leadingIcon = {
+                            Icon(imageVector = Icons.Default.Search, contentDescription = "Search", modifier = Modifier.size(20.dp))
+                        },
+                        trailingIcon = {
+                            if (uiState.searchQuery.isNotEmpty()) {
+                                IconButton(onClick = { onSearchChanged("") }) {
+                                    Icon(imageVector = Icons.Default.Clear, contentDescription = "Clear", modifier = Modifier.size(18.dp))
+                                }
+                            }
+                        },
+                        singleLine = true,
+                        shape = RoundedCornerShape(14.dp),
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = MaterialTheme.colorScheme.surface,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surface
+                        )
+                    )
+
+                    // Filter Chips Row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        FilterChip(
+                            selected = uiState.selectedDateFilter == DateFilterOption.ALL,
+                            onClick = { onDateFilterChanged(DateFilterOption.ALL) },
+                            label = { Text("All Dates") },
+                            shape = RoundedCornerShape(14.dp),
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = BrandOrange,
+                                selectedLabelColor = Color.White
+                            )
+                        )
+
+                        FilterChip(
+                            selected = uiState.selectedDateFilter == DateFilterOption.THIS_MONTH,
+                            onClick = { onDateFilterChanged(DateFilterOption.THIS_MONTH) },
+                            label = { Text("This Month") },
+                            shape = RoundedCornerShape(14.dp),
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = BrandOrange,
+                                selectedLabelColor = Color.White
+                            )
+                        )
+
+                        // Category Filter Dropdown
+                        Box {
+                            Surface(
+                                shape = RoundedCornerShape(14.dp),
+                                color = if (uiState.selectedCategoryFilter != "ALL") BrandOrange else MaterialTheme.colorScheme.surfaceVariant,
+                                modifier = Modifier.clickable { showCategoryMenu = true }
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = if (uiState.selectedCategoryFilter == "ALL") "Category" else uiState.selectedCategoryFilter,
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontWeight = FontWeight.Medium,
+                                            color = if (uiState.selectedCategoryFilter != "ALL") Color.White else MaterialTheme.colorScheme.onSurface
+                                        )
+                                    )
+                                }
+                            }
+
+                            DropdownMenu(
+                                expanded = showCategoryMenu,
+                                onDismissRequest = { showCategoryMenu = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("All Categories") },
+                                    onClick = {
+                                        onCategoryFilterChanged("ALL")
+                                        showCategoryMenu = false
+                                    }
+                                )
+                                ExpenseCategories.EXPENSE_CATEGORIES.forEach { cat ->
+                                    DropdownMenuItem(
+                                        text = { Text(cat.name) },
+                                        onClick = {
+                                            onCategoryFilterChanged(cat.name)
+                                            showCategoryMenu = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
+                        // Payment Filter Dropdown
+                        Box {
+                            Surface(
+                                shape = RoundedCornerShape(14.dp),
+                                color = if (uiState.selectedPaymentFilter != "ALL") BrandOrange else MaterialTheme.colorScheme.surfaceVariant,
+                                modifier = Modifier.clickable { showPaymentMenu = true }
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = if (uiState.selectedPaymentFilter == "ALL") "Payment" else uiState.selectedPaymentFilter,
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontWeight = FontWeight.Medium,
+                                            color = if (uiState.selectedPaymentFilter != "ALL") Color.White else MaterialTheme.colorScheme.onSurface
+                                        )
+                                    )
+                                }
+                            }
+
+                            DropdownMenu(
+                                expanded = showPaymentMenu,
+                                onDismissRequest = { showPaymentMenu = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("All Payments") },
+                                    onClick = {
+                                        onPaymentFilterChanged("ALL")
+                                        showPaymentMenu = false
+                                    }
+                                )
+                                ExpenseCategories.PAYMENT_METHODS.forEach { m ->
+                                    DropdownMenuItem(
+                                        text = { Text(m) },
+                                        onClick = {
+                                            onPaymentFilterChanged(m)
+                                            showPaymentMenu = false
+                                        }
+                                    )
                                 }
                             }
                         }
                     }
-                } else {
-                    items(uiState.filteredTransactions, key = { it.id }) { tx ->
-                        DetailedTransactionCard(
-                            transaction = tx,
-                            onEdit = { onEditTransaction(tx) },
-                            onDuplicate = { onDuplicateTransaction(tx) },
-                            onDelete = { onDeleteTransaction(tx.id) },
-                            onToggleType = { onToggleTransactionType(tx.id) }
-                        )
+                }
+            }
+
+            // 5. Transactions List items
+            if (uiState.filteredTransactions.isEmpty()) {
+                item(key = "empty_tx_state") {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(18.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(32.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Text("🧾", fontSize = 42.sp)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Koi hisaab nahi mila",
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Naya kharcha ya aamadani jodne ke liye neeche button dabayein",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(14.dp))
+                            Button(
+                                onClick = onAddExpenseClicked,
+                                colors = ButtonDefaults.buttonColors(containerColor = BrandOrange),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Add Kharcha / Income")
+                            }
+                        }
                     }
+                }
+            } else {
+                items(uiState.filteredTransactions, key = { it.id }) { tx ->
+                    DetailedTransactionCard(
+                        transaction = tx,
+                        onEdit = { onEditTransaction(tx) },
+                        onDuplicate = { onDuplicateTransaction(tx) },
+                        onDelete = { onDeleteTransaction(tx.id) },
+                        onToggleType = { onToggleTransactionType(tx.id) }
+                    )
                 }
             }
         }

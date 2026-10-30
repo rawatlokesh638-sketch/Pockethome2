@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PocketHome - Account & Data Deletion Request</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#1D4ED8',
+                        brandRed: '#DC2626',
+                        brandGreen: '#10B981'
+                    },
+                    fontFamily: {
+                        sans: ['"Plus Jakarta Sans"', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #F8FAFC; }
+    </style>
+</head>
+<body class="text-slate-800 antialiased min-h-screen flex flex-col">
+
+    <!-- Top Header -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+        <div class="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
+            <a href="./index.html" class="flex items-center space-x-3">
+                <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-primary to-blue-500 flex items-center justify-center text-white font-black text-lg shadow-sm">
+                    P
+                </div>
+                <div>
+                    <span class="text-lg font-extrabold text-slate-900">PocketHome</span>
+                    <span class="text-xs text-slate-500 block">Personal Finance & Smart Expense Tracker</span>
+                </div>
+            </a>
+            <a href="./index.html" class="text-xs font-semibold text-primary hover:underline">
+                ← Back to Home
+            </a>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="max-w-3xl mx-auto px-4 py-8 flex-1 w-full space-y-6">
+
+        <div class="bg-white rounded-2xl border border-slate-200 p-6 md:p-8 shadow-sm space-y-6">
+
+            <!-- Title & Badge -->
+            <div class="space-y-2">
+                <div class="inline-flex items-center space-x-2 bg-red-50 border border-red-200 text-red-700 text-xs font-bold px-3 py-1 rounded-full">
+                    <span>🛡️ User Rights & App Store Compliance</span>
+                </div>
+                <h1 class="text-2xl md:text-3xl font-extrabold text-slate-900">Account & User Data Deletion</h1>
+                <p class="text-sm text-slate-600">
+                    PocketHome complies fully with Indus Appstore (by PhonePe), Google Play Developer Policies, and Indian Personal Data Protection standards. You have absolute ownership and control over your data.
+                </p>
+            </div>
+
+            <div class="border-t border-slate-100 pt-4 space-y-4">
+                <h2 class="text-lg font-bold text-slate-900 flex items-center space-x-2">
+                    <span class="text-xl">📲</span>
+                    <span>Method 1: Instant In-App Deletion (Recommended)</span>
+                </h2>
+                <p class="text-sm text-slate-600">
+                    If you currently have the PocketHome app installed on your Android device:
+                </p>
+                <ol class="list-decimal list-inside space-y-2 text-sm text-slate-700 pl-2">
+                    <li>Open <strong>PocketHome</strong> on your device.</li>
+                    <li>On the Home Screen, tap your <strong>Profile Avatar</strong> in the top-right header or scroll down to the bottom footer.</li>
+                    <li>Tap the red button labeled <strong>"Delete Account & All Data"</strong> (or "Delete Account & Wipe All Data").</li>
+                    <li>Read the warning prompt and tap <strong>"Delete Permanently (हटाएं)"</strong> to confirm.</li>
+                </ol>
+                <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-3.5 text-xs text-emerald-800">
+                    <strong>Instant Execution:</strong> All your expenses, incomes, recurring bills, budget targets, chat logs, and account credentials are permanently wiped immediately from our servers and your local storage.
+                </div>
+            </div>
+
+            <div class="border-t border-slate-100 pt-4 space-y-4">
+                <h2 class="text-lg font-bold text-slate-900 flex items-center space-x-2">
+                    <span class="text-xl">🌐</span>
+                    <span>Method 2: Web Deletion Request (If App Is Uninstalled)</span>
+                </h2>
+                <p class="text-sm text-slate-600">
+                    If you have uninstalled the application or cannot access your device, you can submit an official data erasure request via our dedicated developer support email:
+                </p>
+
+                <div class="bg-slate-50 border border-slate-200 rounded-xl p-5 space-y-3">
+                    <div class="text-sm font-semibold text-slate-800">
+                        Email Support: <a href="mailto:rawatlokesh638@gmail.com?subject=PocketHome%20Account%20Deletion%20Request" class="text-primary hover:underline font-bold">rawatlokesh638@gmail.com</a>
+                    </div>
+                    <div class="text-xs text-slate-600 space-y-1">
+                        <p><strong>Subject line:</strong> PocketHome Account Deletion Request</p>
+                        <p><strong>Required Information:</strong> Your registered email address used in PocketHome (or device ID if Guest mode).</p>
+                    </div>
+
+                    <a href="mailto:rawatlokesh638@gmail.com?subject=PocketHome%20Account%20Deletion%20Request&body=Dear%20PocketHome%20Support%2C%0A%0APlease%20permanently%20delete%20my%20account%20and%20all%20associated%20financial%20data%20from%20PocketHome.%0A%0AMy%20registered%20email%3A%20%5BENTER%20YOUR%20EMAIL%20HERE%5D%0A%0AThank%20you." class="inline-flex items-center space-x-2 bg-red-600 hover:bg-red-700 text-white text-xs font-bold px-4 py-2 rounded-xl shadow-sm transition">
+                        <span>✉️ Send Deletion Request Email</span>
+                    </a>
+                </div>
+            </div>
+
+            <!-- What Data is Deleted -->
+            <div class="border-t border-slate-100 pt-4 space-y-3">
+                <h2 class="text-lg font-bold text-slate-900">What Data Is Deleted?</h2>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-slate-700">
+                    <div class="p-3 rounded-lg border border-slate-100 bg-slate-50">
+                        <strong class="text-slate-900 block mb-1">Financial Transactions</strong>
+                        All logged and SMS-parsed expense & income entries, timestamps, notes, and payment methods.
+                    </div>
+                    <div class="p-3 rounded-lg border border-slate-100 bg-slate-50">
+                        <strong class="text-slate-900 block mb-1">Budgets & Bills</strong>
+                        All monthly budget caps, category allocations, upcoming bills, and payment records.
+                    </div>
+                    <div class="p-3 rounded-lg border border-slate-100 bg-slate-50">
+                        <strong class="text-slate-900 block mb-1">AI Chat History</strong>
+                        All conversational prompts and insights from the AI Wealth Growth advisor.
+                    </div>
+                    <div class="p-3 rounded-lg border border-slate-100 bg-slate-50">
+                        <strong class="text-slate-900 block mb-1">Identity & Account</strong>
+                        Firebase authentication credentials, email addresses, and leaderboard scores.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Retention Policy -->
+            <div class="border-t border-slate-100 pt-4 space-y-2">
+                <h2 class="text-lg font-bold text-slate-900">Data Retention & SLA</h2>
+                <p class="text-sm text-slate-600">
+                    <strong>Zero-Retention Policy:</strong> We do not retain backup copies or archived databases of deleted accounts. When an account deletion is initiated, data is permanently expunged. Email requests are executed within <strong>24 to 48 hours</strong> of receipt.
+                </p>
+            </div>
+
+            <!-- Developer & Contact Information -->
+            <div class="border-t border-slate-100 pt-4 space-y-2">
+                <h2 class="text-lg font-bold text-slate-900">Developer Contact & Grievance Officer</h2>
+                <p class="text-xs text-slate-600">
+                    <strong>App Name:</strong> PocketHome - Personal Finance & Expense Tracker<br>
+                    <strong>Package ID:</strong> com.pockethome.app<br>
+                    <strong>Developer:</strong> Lokesh Rawat<br>
+                    <strong>Email:</strong> <a href="mailto:rawatlokesh638@gmail.com" class="text-primary hover:underline">rawatlokesh638@gmail.com</a>
+                </p>
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-500">
+        <div class="max-w-4xl mx-auto px-4 space-y-2">
+            <p>© 2026 PocketHome. All rights reserved. 100% Zero Third-Party Data Sharing Guaranteed.</p>
+            <div class="flex justify-center space-x-4 text-primary font-medium">
+                <a href="./index.html" class="hover:underline">Home</a>
+                <a href="./delete-account.html" class="hover:underline">Delete Account</a>
+                <a href="mailto:rawatlokesh638@gmail.com" class="hover:underline">Support</a>
+            </div>
+        </div>
+    </footer>
+
+</body>
+</html>

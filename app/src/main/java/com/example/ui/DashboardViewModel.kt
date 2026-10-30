@@ -273,7 +273,16 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         if (msg.contains("not allowed", ignoreCase = true) || msg.contains("disabled", ignoreCase = true)) {
             return "⚠️ Firebase Console me Email/Password provider Disabled hai! Pehle Firebase Console > Authentication > Sign-in method me jaakar 'Email/Password' ko Enable (ON) karein."
         }
-        return msg
+        if (e is com.google.firebase.auth.FirebaseAuthInvalidUserException) {
+            return "❌ Account nahi mila! Kripya sahi Email dalein ya Naya Account (Sign Up) banayein."
+        }
+        if (e is com.google.firebase.auth.FirebaseAuthInvalidCredentialsException) {
+            return "❌ Galat Password ya Invalid Email format! Kripya dobara check karein."
+        }
+        if (e is com.google.firebase.FirebaseNetworkException || msg.contains("network", ignoreCase = true) || msg.contains("connection", ignoreCase = true) || msg.contains("host", ignoreCase = true)) {
+            return "🌐 Network Error: Internet connection check karein, ya 'Continue as Guest (Atithi Mode)' se app chalayein."
+        }
+        return "⚠️ Authentication Error: $msg"
     }
 
     fun setAuthError(error: String?) {
@@ -283,92 +292,42 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     fun login(email: String, pass: String) {
         _authLoading.value = true
         _authError.value = null
-        Firebase.auth.signInWithEmailAndPassword(email.trim(), pass)
-            .addOnSuccessListener {
-                _authLoading.value = false
-            }
-            .addOnFailureListener { e ->
-                _authLoading.value = false
-                _authError.value = formatAuthError(e)
-            }
+        try {
+            Firebase.auth.signInWithEmailAndPassword(email.trim(), pass)
+                .addOnSuccessListener {
+                    _authLoading.value = false
+                }
+                .addOnFailureListener { e ->
+                    _authLoading.value = false
+                    _authError.value = formatAuthError(e)
+                }
+        } catch (e: Exception) {
+            _authLoading.value = false
+            _authError.value = formatAuthError(e)
+        }
     }
 
     fun signup(name: String, email: String, pass: String) {
         _authLoading.value = true
         _authError.value = null
-        Firebase.auth.createUserWithEmailAndPassword(email.trim(), pass)
-            .addOnSuccessListener { result ->
-                val user = result.user
-                val profileUpdates = com.google.firebase.auth.userProfileChangeRequest {
-                    displayName = name.trim()
-                }
-                user?.updateProfile(profileUpdates)?.addOnCompleteListener {
-                    _authLoading.value = false
-                }
-            }
-            .addOnFailureListener { e ->
-                _authLoading.value = false
-                _authError.value = formatAuthError(e)
-            }
-    }
-
-    fun signInWithGoogle(context: android.content.Context) {
-        _authLoading.value = true
-        _authError.value = null
-        viewModelScope.launch {
-            try {
-                val credentialManager = androidx.credentials.CredentialManager.create(context)
-                val rawClientId = System.getenv("WEB_CLIENT_ID") ?: ""
-                val webClientId = rawClientId.ifEmpty { "248460314025-pockethome.apps.googleusercontent.com" }
-
-                val googleIdOption = com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption.Builder(webClientId)
-                    .build()
-
-                val request = androidx.credentials.GetCredentialRequest.Builder()
-                    .addCredentialOption(googleIdOption)
-                    .build()
-
-                val activity = context as? android.app.Activity
-                if (activity != null) {
-                    val result = credentialManager.getCredential(activity, request)
-                    val googleIdTokenCredential = com.google.android.libraries.identity.googleid.GoogleIdTokenCredential.createFrom(result.credential.data)
-                    val firebaseCredential = com.google.firebase.auth.GoogleAuthProvider.getCredential(googleIdTokenCredential.idToken, null)
-
-                    Firebase.auth.signInWithCredential(firebaseCredential)
-                        .addOnSuccessListener {
-                            _authLoading.value = false
-                        }
-                        .addOnFailureListener { e ->
-                            _authLoading.value = false
-                            _authError.value = "Google Sign-In failed: ${e.localizedMessage}"
-                        }
-                } else {
-                    _authLoading.value = false
-                    _authError.value = "Activity context not found for Google Sign-In."
-                }
-            } catch (e: Exception) {
-                _authLoading.value = false
-                val msg = e.localizedMessage ?: "Google Sign-In error"
-                android.util.Log.w("DashboardViewModel", "Google Sign-In exception: $msg", e)
-
-                // Seamless fallback to Google Account session in Firebase Auth so user enters app instantly!
-                val fallbackEmail = "google_user_${System.currentTimeMillis().toString().takeLast(6)}@gmail.com"
-                val fallbackPass = "Pockethome_${System.currentTimeMillis()}"
-
-                Firebase.auth.createUserWithEmailAndPassword(fallbackEmail, fallbackPass)
-                    .addOnSuccessListener { result ->
-                        val user = result.user
-                        val profileUpdates = com.google.firebase.auth.userProfileChangeRequest {
-                            displayName = "Google User"
-                        }
-                        user?.updateProfile(profileUpdates)?.addOnCompleteListener {
-                            _authLoading.value = false
-                        }
+        try {
+            Firebase.auth.createUserWithEmailAndPassword(email.trim(), pass)
+                .addOnSuccessListener { result ->
+                    val user = result.user
+                    val profileUpdates = com.google.firebase.auth.userProfileChangeRequest {
+                        displayName = name.trim()
                     }
-                    .addOnFailureListener {
-                        loginAsGuest()
+                    user?.updateProfile(profileUpdates)?.addOnCompleteListener {
+                        _authLoading.value = false
                     }
-            }
+                }
+                .addOnFailureListener { e ->
+                    _authLoading.value = false
+                    _authError.value = formatAuthError(e)
+                }
+        } catch (e: Exception) {
+            _authLoading.value = false
+            _authError.value = formatAuthError(e)
         }
     }
 
@@ -384,7 +343,41 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun logout() {
-        Firebase.auth.signOut()
+        try {
+            Firebase.auth.signOut()
+        } catch (e: Exception) {
+            android.util.Log.e("DashboardViewModel", "Sign out error", e)
+        }
+        _isUserLoggedIn.value = false
+        _activeUserId.value = ""
+        _authMode.value = AuthMode.LOGIN
+        _activeTab.value = AppTab.HOME
+        repository.onUserLoggedOut()
+    }
+
+    fun deleteAccount(
+        onSuccess: () -> Unit = {},
+        onError: (String) -> Unit = {}
+    ) {
+        _authLoading.value = true
+        val uid = _activeUserId.value
+        repository.deleteAccountAndData(
+            userId = uid,
+            onComplete = {
+                _authLoading.value = false
+                _isUserLoggedIn.value = false
+                _activeUserId.value = ""
+                _authMode.value = AuthMode.LOGIN
+                _activeTab.value = AppTab.HOME
+                onSuccess()
+            },
+            onError = { e ->
+                _authLoading.value = false
+                val errorMsg = formatAuthError(e)
+                _authError.value = errorMsg
+                onError(errorMsg)
+            }
+        )
     }
 
     fun setAuthMode(mode: AuthMode) {

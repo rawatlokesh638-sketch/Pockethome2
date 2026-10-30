@@ -7,20 +7,32 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.Crossfade
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Text
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.model.Transaction
 import com.example.ui.components.AddBillSheet
@@ -54,6 +66,7 @@ fun DashboardScreen(
     var showProPlanSheet by remember { mutableStateOf(false) }
     var showPrivacyPolicyDialog by remember { mutableStateOf(false) }
     var showSmsDisclosureDialog by remember { mutableStateOf(false) }
+    var showDeleteAccountDialog by remember { mutableStateOf(false) }
     var currentChartTimeframe by remember { mutableStateOf(ChartTimeframe.DAILY) }
 
     // Runtime Permission Launcher for SMS
@@ -122,7 +135,6 @@ fun DashboardScreen(
                 LoginScreen(
                     onLogin = { e, p -> viewModel.login(email = e, pass = p) },
                     onNavigateToSignup = { viewModel.setAuthMode(AuthMode.SIGNUP) },
-                    onGoogleSignIn = { viewModel.signInWithGoogle(context) },
                     onGuestLogin = { viewModel.loginAsGuest() },
                     isLoading = uiState.authLoading,
                     errorMessage = uiState.authError
@@ -132,7 +144,6 @@ fun DashboardScreen(
                 SignupScreen(
                     onSignup = { n, e, p -> viewModel.signup(name = n, email = e, pass = p) },
                     onNavigateToLogin = { viewModel.setAuthMode(AuthMode.LOGIN) },
-                    onGoogleSignIn = { viewModel.signInWithGoogle(context) },
                     onGuestLogin = { viewModel.loginAsGuest() },
                     isLoading = uiState.authLoading,
                     errorMessage = uiState.authError
@@ -172,7 +183,8 @@ fun DashboardScreen(
                                     userXp = uiState.userXp,
                                     onTabSelected = { viewModel.selectTab(it) },
                                     onOpenAiAdvisor = { showAiGrowthSheet = true },
-                                    onOpenPrivacyPolicy = { showPrivacyPolicyDialog = true }
+                                    onOpenPrivacyPolicy = { showPrivacyPolicyDialog = true },
+                                    onDeleteAccountRequest = { showDeleteAccountDialog = true }
                                 )
                             }
                         },
@@ -253,7 +265,21 @@ fun DashboardScreen(
                                             onOpenAiGrowthAdvisor = { showAiGrowthSheet = true },
                                             onOpenSmartAdd = { showSmartAddSheet = true },
                                             onOpenPrivacyPolicy = { showPrivacyPolicyDialog = true },
-                                            onLogout = { viewModel.logout() }
+                                            onLogout = { viewModel.logout() },
+                                            onDeleteAccount = {
+                                                viewModel.deleteAccount(
+                                                    onSuccess = {
+                                                        scope.launch {
+                                                            snackbarHostState.showSnackbar("Aapka account aur sara data permanently delete kar diya gaya hai! 🗑️")
+                                                        }
+                                                    },
+                                                    onError = { err ->
+                                                        scope.launch {
+                                                            snackbarHostState.showSnackbar("Error: $err")
+                                                        }
+                                                    }
+                                                )
+                                            }
                                         )
                                     }
 
@@ -556,6 +582,74 @@ fun DashboardScreen(
     if (showPrivacyPolicyDialog) {
         com.example.ui.components.PrivacyPolicyDialog(
             onDismiss = { showPrivacyPolicyDialog = false }
+        )
+    }
+
+    if (showDeleteAccountDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteAccountDialog = false },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.DeleteForever,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(36.dp)
+                )
+            },
+            title = {
+                Text(
+                    text = "Delete Account Permanently?",
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.error
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Kya aap sach me apna account aur sara data humesha ke liye delete karna chahte hain?",
+                        fontWeight = FontWeight.SemiBold,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Text(
+                        text = "• Sabhi kharche (expenses), aay (income) aur bills delete ho jayenge.\n• Monthly budget aur AI chat sessions permanently wipe ho jayenge.\n• Leaderboard score aur rank hat jayegi.\n• Aapka Firebase login account delete ho jayega.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "⚠️ Yeh action wapas nahi ho sakta (Irreversible).",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showDeleteAccountDialog = false
+                        viewModel.deleteAccount(
+                            onSuccess = {
+                                scope.launch {
+                                    snackbarHostState.showSnackbar("Aapka account aur sara data permanently delete kar diya gaya hai! 🗑️")
+                                }
+                            },
+                            onError = { err ->
+                                scope.launch {
+                                    snackbarHostState.showSnackbar("Error: $err")
+                                }
+                            }
+                        )
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                    modifier = Modifier.testTag("confirm_delete_account_dialog_button")
+                ) {
+                    Text("Delete Permanently (हटाएं)", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showDeleteAccountDialog = false }) {
+                    Text("Cancel (रद्द करें)")
+                }
+            }
         )
     }
 }

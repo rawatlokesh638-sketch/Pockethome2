@@ -11,11 +11,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.ChevronLeft
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.TableChart
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.*
@@ -32,10 +32,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.ExpenseCategories
+import com.example.ui.CategorySpend
 import com.example.ui.DashboardUiState
 import com.example.ui.DashboardViewModel
 import com.example.ui.ReportsTimeframe
 import com.example.ui.theme.*
+
+enum class ReportCategoryMode {
+    EXPENSES,
+    INCOME,
+    BILLS
+}
 
 @Composable
 fun ReportsScreen(
@@ -47,6 +54,50 @@ fun ReportsScreen(
     onOpenAiAdvisor: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    var activeMode by remember { mutableStateOf(ReportCategoryMode.EXPENSES) }
+
+    // Compute period totals accurately from filtered transactions or fall back to uiState totals
+    val filteredTxns = uiState.filteredTransactions
+    val periodExpenses = if (filteredTxns.isNotEmpty()) {
+        filteredTxns.filter { it.isExpense() }.sumOf { it.amount }
+    } else {
+        uiState.currentMonthExpenses.ifZero { uiState.totalAllTimeExpenses }
+    }
+
+    val periodIncome = if (filteredTxns.isNotEmpty()) {
+        filteredTxns.filter { it.isIncome() }.sumOf { it.amount }
+    } else {
+        uiState.currentMonthIncome.ifZero { uiState.totalAllTimeIncome }
+    }
+
+    val periodNetBalance = periodIncome - periodExpenses
+    val totalBillsAmount = uiState.upcomingBills.sumOf { it.amount }
+    val totalBillsCount = uiState.upcomingBills.size
+
+    val activeBreakdown: List<CategorySpend> = when (activeMode) {
+        ReportCategoryMode.EXPENSES -> {
+            if (uiState.categoryBreakdown.isNotEmpty()) uiState.categoryBreakdown
+            else uiState.allTimeCategoryBreakdown
+        }
+        ReportCategoryMode.INCOME -> uiState.incomeCategoryBreakdown
+        ReportCategoryMode.BILLS -> {
+            uiState.upcomingBills.groupBy { it.category }.map { (cat, bills) ->
+                CategorySpend(
+                    categoryName = cat,
+                    totalAmount = bills.sumOf { it.amount },
+                    percentage = if (totalBillsAmount > 0) ((bills.sumOf { it.amount } / totalBillsAmount) * 100).toFloat() else 0f,
+                    count = bills.size
+                )
+            }.sortedByDescending { it.totalAmount }
+        }
+    }
+
+    val activeTotal = when (activeMode) {
+        ReportCategoryMode.EXPENSES -> periodExpenses
+        ReportCategoryMode.INCOME -> periodIncome
+        ReportCategoryMode.BILLS -> totalBillsAmount
+    }
+
     Surface(
         modifier = modifier
             .fillMaxSize()
@@ -54,285 +105,445 @@ fun ReportsScreen(
             .testTag("reports_screen"),
         color = MaterialTheme.colorScheme.background
     ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            // Top Bar
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = onBack) {
-                    Icon(imageVector = Icons.Default.ArrowBack, contentDescription = "Back")
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(bottom = 110.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // 1. Top Bar & Title
+            item(key = "reports_top_bar") {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = onBack) {
+                        Icon(imageVector = Icons.Default.ArrowBack, contentDescription = "Back")
+                    }
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Column {
+                        Text(
+                            text = "Spending & Income Reports 📊",
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 20.sp
+                            ),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "Aapka poora kharcha, aamadani aur bills ki detailed report",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    text = "Spending Insights",
-                    style = MaterialTheme.typography.titleLarge.copy(
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 20.sp
-                    ),
-                    color = MaterialTheme.colorScheme.onSurface
-                )
             }
 
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(bottom = 90.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                // AI Money Growth Advisor Banner in Reports
-                item {
-                    Card(
+            // 2. AI Money Growth Advisor Banner
+            item(key = "ai_advisor_banner") {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp)
+                        .clickable { onOpenAiAdvisor() },
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MoneyGreen.copy(alpha = 0.08f)),
+                    border = androidx.compose.foundation.BorderStroke(1.2.dp, MoneyGreen.copy(alpha = 0.35f))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(42.dp)
+                                .clip(CircleShape)
+                                .background(MoneyGreen.copy(alpha = 0.15f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(imageVector = Icons.Default.TrendingUp, contentDescription = null, tint = MoneyGreen, modifier = Modifier.size(24.dp))
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(text = "AI Money Growth & Wealth Advisor", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Surface(shape = RoundedCornerShape(4.dp), color = MoneyGreen.copy(alpha = 0.15f)) {
+                                    Text(text = "LIVE", color = MoneyGreen, style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, fontWeight = FontWeight.Bold), modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp))
+                                }
+                            }
+                            Text(text = "Kaha lagayein, kaha se bachaayein aur kitna grow hoga!", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Icon(imageVector = Icons.Default.ChevronRight, contentDescription = null, tint = MoneyGreen)
+                    }
+                }
+            }
+
+            // 3. Timeframe Pills: [ Monthly ] [ Yearly ]
+            item(key = "timeframe_select") {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    ReportPill(
+                        label = "Monthly Report 📅",
+                        selected = uiState.reportsTimeframe == ReportsTimeframe.MONTHLY,
+                        onClick = { onTimeframeSelected(ReportsTimeframe.MONTHLY) },
+                        modifier = Modifier.weight(1f)
+                    )
+                    ReportPill(
+                        label = "Yearly Report 📆",
+                        selected = uiState.reportsTimeframe == ReportsTimeframe.YEARLY,
+                        onClick = { onTimeframeSelected(ReportsTimeframe.YEARLY) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+
+            // 4. Report Financial Overview Cards (Expenses, Income, Bills, Net Balance)
+            item(key = "report_summary_cards") {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 20.dp)
-                            .clickable { onOpenAiAdvisor() },
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = MoneyGreen.copy(alpha = 0.08f)),
-                        border = androidx.compose.foundation.BorderStroke(1.2.dp, MoneyGreen.copy(alpha = 0.35f))
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
+                        Text(
+                            text = "Report Period Summary",
+                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+
                         Row(
-                            modifier = Modifier.padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(42.dp)
-                                    .clip(CircleShape)
-                                    .background(MoneyGreen.copy(alpha = 0.15f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(imageVector = Icons.Default.TrendingUp, contentDescription = null, tint = MoneyGreen, modifier = Modifier.size(24.dp))
-                            }
-                            Spacer(modifier = Modifier.width(12.dp))
+                            // Expenses Card
                             Column(modifier = Modifier.weight(1f)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(text = "AI Money Growth & Wealth Advisor", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Surface(shape = RoundedCornerShape(4.dp), color = MoneyGreen.copy(alpha = 0.15f)) {
-                                        Text(text = "LIVE", color = MoneyGreen, style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, fontWeight = FontWeight.Bold), modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp))
+                                    Box(
+                                        modifier = Modifier
+                                            .size(20.dp)
+                                            .clip(CircleShape)
+                                            .background(RosePrimary.copy(alpha = 0.15f)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(Icons.Default.ArrowDownward, contentDescription = null, tint = RosePrimary, modifier = Modifier.size(12.dp))
                                     }
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Kul Kharcha", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
-                                Text(text = "Kaha lagayein, kaha se bachaayein aur kitna grow hoga!", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = DashboardViewModel.formatCurrency(periodExpenses),
+                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = RosePrimary, fontSize = 16.sp)
+                                )
                             }
-                            Icon(imageVector = Icons.Default.ChevronRight, contentDescription = null, tint = MoneyGreen)
+
+                            // Income Card
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(20.dp)
+                                            .clip(CircleShape)
+                                            .background(EmeraldPrimary.copy(alpha = 0.15f)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(Icons.Default.ArrowUpward, contentDescription = null, tint = EmeraldPrimary, modifier = Modifier.size(12.dp))
+                                    }
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Kul Kamai", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = DashboardViewModel.formatCurrency(periodIncome),
+                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = EmeraldPrimary, fontSize = 16.sp)
+                                )
+                            }
+                        }
+
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            // Bills Summary
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(20.dp)
+                                            .clip(CircleShape)
+                                            .background(BrandOrange.copy(alpha = 0.15f)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(Icons.Default.Receipt, contentDescription = null, tint = BrandOrange, modifier = Modifier.size(12.dp))
+                                    }
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Upcoming Bills ($totalBillsCount)", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = DashboardViewModel.formatCurrency(totalBillsAmount),
+                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = BrandOrange, fontSize = 15.sp)
+                                )
+                            }
+
+                            // Net Savings
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Net Savings / Surplus", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = DashboardViewModel.formatCurrency(periodNetBalance),
+                                    style = MaterialTheme.typography.titleMedium.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (periodNetBalance >= 0) EmeraldPrimary else RosePrimary,
+                                        fontSize = 15.sp
+                                    )
+                                )
+                            }
                         }
                     }
                 }
+            }
 
-                // 1. Timeframe Select
-                item {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 20.dp),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        ReportPill(
-                            label = "Monthly",
-                            selected = uiState.reportsTimeframe == ReportsTimeframe.MONTHLY,
-                            onClick = { onTimeframeSelected(ReportsTimeframe.MONTHLY) },
-                            modifier = Modifier.weight(1f)
-                        )
-                        ReportPill(
-                            label = "Yearly",
-                            selected = uiState.reportsTimeframe == ReportsTimeframe.YEARLY,
-                            onClick = { onTimeframeSelected(ReportsTimeframe.YEARLY) },
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                }
-
-                // Export to PDF / Excel (PRO Feature)
-                item {
-                    val context = LocalContext.current
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 20.dp),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, if (isPro) RoyalBlue.copy(alpha = 0.3f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
+            // 5. Export to PDF / Excel Card
+            item(key = "export_report_card") {
+                val context = LocalContext.current
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, if (isPro) RoyalBlue.copy(alpha = 0.3f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
                             Row(
-                                modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
+                                modifier = Modifier.weight(1f).padding(end = 8.dp)
                             ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.weight(1f).padding(end = 8.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Description,
-                                        contentDescription = null,
-                                        tint = RoyalBlue,
-                                        modifier = Modifier.size(22.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = "Export Report (PDF & Excel)",
-                                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                }
-                                Surface(
-                                    shape = RoundedCornerShape(4.dp),
-                                    color = if (isPro) Color(0xFF10B981).copy(alpha = 0.15f) else Color(0xFF1D4ED8).copy(alpha = 0.15f),
-                                    modifier = Modifier.wrapContentSize()
-                                ) {
-                                    Text(
-                                        text = if (isPro) "PRO ACTIVE" else "PRO ⭐ (₹15/mo)",
-                                        color = if (isPro) Color(0xFF10B981) else Color(0xFF1D4ED8),
-                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, fontWeight = FontWeight.Bold),
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                        maxLines = 1,
-                                        softWrap = false
-                                    )
-                                }
+                                Icon(
+                                    imageVector = Icons.Default.Description,
+                                    contentDescription = null,
+                                    tint = RoyalBlue,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Export Report (PDF & Excel)",
+                                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = if (isPro) Color(0xFF10B981).copy(alpha = 0.15f) else Color(0xFF1D4ED8).copy(alpha = 0.15f),
+                                modifier = Modifier.wrapContentSize()
+                            ) {
+                                Text(
+                                    text = if (isPro) "PRO ACTIVE" else "PRO ⭐ (₹15/mo)",
+                                    color = if (isPro) Color(0xFF10B981) else Color(0xFF1D4ED8),
+                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, fontWeight = FontWeight.Bold),
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = if (isPro) "Download clean financial summary for ${uiState.activeMonthDisplay}" else "Download clean monthly PDF / Excel spreadsheet (Available in PRO)",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = {
+                                    if (!isPro) {
+                                        onUpgradeClicked()
+                                    } else {
+                                        val file = com.example.util.ReportExporter.generatePdf(context, filteredTxns)
+                                        val uri = com.example.util.ReportExporter.getFileUri(context, file)
+                                        val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                                            type = "application/pdf"
+                                            putExtra(Intent.EXTRA_STREAM, uri)
+                                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                        }
+                                        context.startActivity(Intent.createChooser(sendIntent, "Share Report via"))
+                                    }
+                                },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Icon(imageVector = Icons.Default.Description, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Export PDF", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold))
                             }
 
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Text(
-                                text = if (isPro) "Download clean financial summary for ${uiState.activeMonthDisplay}" else "Download clean monthly PDF / Excel spreadsheet (Available in PRO)",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-
-                            Spacer(modifier = Modifier.height(14.dp))
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            Button(
+                                onClick = {
+                                    if (!isPro) {
+                                        onUpgradeClicked()
+                                    } else {
+                                        val file = com.example.util.ReportExporter.generateCsv(context, filteredTxns)
+                                        val uri = com.example.util.ReportExporter.getFileUri(context, file)
+                                        val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                                            type = "text/csv"
+                                            putExtra(Intent.EXTRA_STREAM, uri)
+                                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                        }
+                                        context.startActivity(Intent.createChooser(sendIntent, "Share Excel / CSV via"))
+                                    }
+                                },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue)
                             ) {
-                                OutlinedButton(
-                                    onClick = {
-                                        if (!isPro) {
-                                            onUpgradeClicked()
-                                        } else {
-                                            val file = com.example.util.ReportExporter.generatePdf(context, uiState.filteredTransactions)
-                                            val uri = com.example.util.ReportExporter.getFileUri(context, file)
-                                            val sendIntent = Intent(Intent.ACTION_SEND).apply {
-                                                type = "application/pdf"
-                                                putExtra(Intent.EXTRA_STREAM, uri)
-                                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                            }
-                                            context.startActivity(Intent.createChooser(sendIntent, "Share Report via"))
-                                        }
-                                    },
-                                    modifier = Modifier.weight(1f),
-                                    shape = RoundedCornerShape(12.dp)
-                                ) {
-                                    Icon(imageVector = Icons.Default.Description, contentDescription = null, modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Export PDF", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold))
-                                }
-
-                                Button(
-                                    onClick = {
-                                        if (!isPro) {
-                                            onUpgradeClicked()
-                                        } else {
-                                            val file = com.example.util.ReportExporter.generateCsv(context, uiState.filteredTransactions)
-                                            val uri = com.example.util.ReportExporter.getFileUri(context, file)
-                                            val sendIntent = Intent(Intent.ACTION_SEND).apply {
-                                                type = "text/csv"
-                                                putExtra(Intent.EXTRA_STREAM, uri)
-                                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                            }
-                                            context.startActivity(Intent.createChooser(sendIntent, "Share Excel / CSV via"))
-                                        }
-                                    },
-                                    modifier = Modifier.weight(1f),
-                                    shape = RoundedCornerShape(12.dp),
-                                    colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue)
-                                ) {
-                                    Icon(imageVector = Icons.Default.TableChart, contentDescription = null, modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Export Excel", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold))
-                                }
+                                Icon(imageVector = Icons.Default.TableChart, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Export Excel", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold))
                             }
                         }
                     }
                 }
+            }
 
-                // 2. Spending Trend Area Chart (Recharts Style)
-                item {
+            // 6. Spending Trend Area Chart
+            item(key = "spending_trend_chart") {
+                Column(modifier = Modifier.padding(horizontal = 20.dp)) {
                     Text(
                         text = "Monthly Spending Trend",
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        modifier = Modifier.padding(horizontal = 20.dp)
+                        color = MaterialTheme.colorScheme.onSurface
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 20.dp)
-                            .height(200.dp),
+                            .height(210.dp),
                         shape = RoundedCornerShape(18.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                     ) {
                         SpendingAreaChart(
-                            transactions = uiState.filteredTransactions,
-                            totalExpenses = uiState.currentMonthExpenses,
+                            transactions = filteredTxns,
+                            totalExpenses = periodExpenses,
                             modifier = Modifier.fillMaxSize().padding(16.dp)
                         )
                     }
                 }
+            }
 
-                // 3. Category Distribution (Donut)
-                item {
+            // 7. Category Breakdown Mode Switcher: [ Kharcha 💸 ] [ Kamai 💰 ] [ Bills 🧾 ]
+            item(key = "category_mode_switcher") {
+                Column(modifier = Modifier.padding(horizontal = 20.dp)) {
                     Text(
-                        text = "Category Distribution",
+                        text = "Category Breakdown & Distribution",
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        modifier = Modifier.padding(horizontal = 20.dp)
+                        color = MaterialTheme.colorScheme.onSurface
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Box(
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Row(
                         modifier = Modifier.fillMaxWidth(),
-                        contentAlignment = Alignment.Center
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        DonutChart(
-                            breakdown = uiState.categoryBreakdown,
-                            totalExpenses = uiState.currentMonthExpenses
-                        )
+                        listOf(
+                            Triple(ReportCategoryMode.EXPENSES, "Kharcha 💸", RosePrimary),
+                            Triple(ReportCategoryMode.INCOME, "Kamai 💰", EmeraldPrimary),
+                            Triple(ReportCategoryMode.BILLS, "Bills 🧾", BrandOrange)
+                        ).forEach { (mode, label, color) ->
+                            val isSelected = activeMode == mode
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(if (isSelected) color else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                    .clickable { activeMode = mode }
+                                    .padding(vertical = 8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = label,
+                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium),
+                                    color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
                     }
                 }
+            }
 
-                // 4. Breakdown Legend
-                item {
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 20.dp),
-                        shape = RoundedCornerShape(18.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            // 8. Category Distribution Donut Chart
+            item(key = "donut_chart_section") {
+                Box(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    DonutChart(
+                        breakdown = activeBreakdown,
+                        totalExpenses = activeTotal
+                    )
+                }
+            }
+
+            // 9. Category Breakdown Details Legend
+            item(key = "category_legend_card") {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Column(
-                            modifier = Modifier.fillMaxWidth().padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            if (uiState.categoryBreakdown.isEmpty()) {
-                                Text("No data for current period", modifier = Modifier.align(Alignment.CenterHorizontally))
-                            } else {
-                                uiState.categoryBreakdown.forEach { item ->
-                                    val catInfo = ExpenseCategories.getCategoryInfo(item.categoryName)
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(catInfo.color))
-                                            Spacer(modifier = Modifier.width(10.dp))
-                                            Text(item.categoryName, style = MaterialTheme.typography.bodyMedium)
-                                        }
-                                        Text(DashboardViewModel.formatCurrency(item.totalAmount), fontWeight = FontWeight.Bold)
+                        if (activeBreakdown.isEmpty()) {
+                            Text("No category data recorded for this mode", modifier = Modifier.align(Alignment.CenterHorizontally), style = MaterialTheme.typography.bodySmall)
+                        } else {
+                            activeBreakdown.forEach { item ->
+                                val catInfo = ExpenseCategories.getCategoryInfo(item.categoryName)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(catInfo.color))
+                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Text(item.categoryName, style = MaterialTheme.typography.bodyMedium)
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("(${item.count})", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
+                                    Text(DashboardViewModel.formatCurrency(item.totalAmount), fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
@@ -343,6 +554,10 @@ fun ReportsScreen(
     }
 }
 
+private fun Double.ifZero(fallback: () -> Double): Double {
+    return if (this <= 0.0) fallback() else this
+}
+
 @Composable
 fun SpendingAreaChart(
     transactions: List<com.example.model.Transaction>,
@@ -350,8 +565,9 @@ fun SpendingAreaChart(
     modifier: Modifier = Modifier
 ) {
     val expenseTxns = transactions.filter { it.isExpense() }
+    val calcTotal = if (totalExpenses > 0) totalExpenses else expenseTxns.sumOf { it.amount }
 
-    if (totalExpenses <= 0.0 || expenseTxns.isEmpty()) {
+    if (calcTotal <= 0.0 || expenseTxns.isEmpty()) {
         Box(
             modifier = modifier,
             contentAlignment = Alignment.Center
@@ -383,7 +599,7 @@ fun SpendingAreaChart(
         return
     }
 
-    // Compute actual 7 data points from transactions grouped by timestamp or date
+    // Compute actual 7 data points from transactions grouped by timestamp
     val sorted = expenseTxns.sortedBy { it.timestamp }
     val chunkCount = 7
     val minTime = sorted.first().timestamp
@@ -423,7 +639,6 @@ fun SpendingAreaChart(
         fillPath.lineTo(width, height)
         fillPath.close()
 
-        // Draw Area Fill (Recharts style)
         drawPath(
             path = fillPath,
             brush = Brush.verticalGradient(
@@ -431,14 +646,12 @@ fun SpendingAreaChart(
             )
         )
 
-        // Draw Line
         drawPath(
             path = path,
             color = RoyalBlue,
             style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
         )
 
-        // Draw points
         points.forEachIndexed { i, p ->
             val x = i * step
             val y = height - (p * (height - 30.dp.toPx())) - 10.dp.toPx()
@@ -465,7 +678,9 @@ private fun ReportPill(label: String, selected: Boolean, onClick: () -> Unit, mo
 
 @Composable
 private fun DonutChart(breakdown: List<com.example.ui.CategorySpend>, totalExpenses: Double) {
-    if (totalExpenses <= 0.0 || breakdown.isEmpty()) {
+    val computedTotal = if (totalExpenses > 0) totalExpenses else breakdown.sumOf { it.totalAmount }
+
+    if (computedTotal <= 0.0 || breakdown.isEmpty()) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -475,19 +690,19 @@ private fun DonutChart(breakdown: List<com.example.ui.CategorySpend>, totalExpen
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Box(
                     modifier = Modifier
-                        .size(140.dp)
+                        .size(130.dp)
                         .clip(CircleShape)
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(DashboardViewModel.formatCurrency(0.0), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        Text("No spending", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("No data", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
                 Spacer(modifier = Modifier.height(10.dp))
                 Text(
-                    text = "No spending data for this period",
+                    text = "No category breakdown for this selection",
                     style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -501,20 +716,23 @@ private fun DonutChart(breakdown: List<com.example.ui.CategorySpend>, totalExpen
             val strokeWidth = 30.dp.toPx()
             var start = -90f
             breakdown.forEach { item ->
-                val sweep = (item.percentage / 100f) * 360f
-                drawArc(
-                    color = ExpenseCategories.getCategoryInfo(item.categoryName).color,
-                    startAngle = start,
-                    sweepAngle = sweep - 1f,
-                    useCenter = false,
-                    style = Stroke(strokeWidth, cap = StrokeCap.Round)
-                )
-                start += sweep
+                val pct = if (computedTotal > 0) (item.totalAmount / computedTotal).toFloat() else 0f
+                val sweep = pct * 360f
+                if (sweep > 0f) {
+                    drawArc(
+                        color = ExpenseCategories.getCategoryInfo(item.categoryName).color,
+                        startAngle = start,
+                        sweepAngle = sweep - 1f,
+                        useCenter = false,
+                        style = Stroke(strokeWidth, cap = StrokeCap.Round)
+                    )
+                    start += sweep
+                }
             }
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(DashboardViewModel.formatCurrency(totalExpenses), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            Text("Total", style = MaterialTheme.typography.bodySmall)
+            Text(DashboardViewModel.formatCurrency(computedTotal), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text("Total", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

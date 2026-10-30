@@ -26,7 +26,8 @@ fun DashboardTopBar(
     userXp: Int = 0,
     onTabSelected: (AppTab) -> Unit,
     onOpenAiAdvisor: () -> Unit,
-    onOpenPrivacyPolicy: () -> Unit = {}
+    onOpenPrivacyPolicy: () -> Unit = {},
+    onDeleteAccountRequest: () -> Unit = {}
 ) {
     var expanded by remember { mutableStateOf(false) }
 
@@ -90,6 +91,13 @@ fun DashboardTopBar(
                     onClick = {
                         expanded = false
                         onOpenPrivacyPolicy()
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text("Delete Account & Data 🗑️", color = MaterialTheme.colorScheme.error) },
+                    onClick = {
+                        expanded = false
+                        onDeleteAccountRequest()
                     }
                 )
             }
