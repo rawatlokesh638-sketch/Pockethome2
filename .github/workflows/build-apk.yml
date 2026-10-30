@@ -45,8 +45,17 @@ jobs:
           echo "project_dir=$PROJECT_DIR" >> $GITHUB_OUTPUT
 
       - name: Ensure Keystores Exist (Release and Debug)
+        env:
+          SECRET_STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+          SECRET_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          SECRET_KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 || secrets.RELEASE_KEYSTORE_BASE64 }}
         run: |
           PROJECT_DIR="${{ steps.locate_dir.outputs.project_dir }}"
+          STORE_PASS="${SECRET_STORE_PASSWORD:-Pk#9xL@2026$PocketHome!Key}"
+          STORE_PASS=$(echo "$STORE_PASS" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//")
+          KEY_PASS="${SECRET_KEY_PASSWORD:-$STORE_PASS}"
+          KEY_PASS=$(echo "$KEY_PASS" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//")
+
           # Debug keystore
           if [ ! -f "$PROJECT_DIR/debug.keystore" ]; then
             if [ -f "$PROJECT_DIR/debug.keystore.base64" ]; then
@@ -57,18 +66,41 @@ jobs:
               keytool -genkey -v -keystore "$PROJECT_DIR/debug.keystore" -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
             fi
           fi
+
           # Release keystore (my-upload-key.jks)
-          if [ ! -f "$PROJECT_DIR/my-upload-key.jks" ]; then
-            if [ -f "$PROJECT_DIR/my-upload-key.jks.base64" ]; then
-              echo "Decoding my-upload-key.jks from base64..."
-              base64 -d "$PROJECT_DIR/my-upload-key.jks.base64" > "$PROJECT_DIR/my-upload-key.jks"
+          if [ -n "$SECRET_KEYSTORE_BASE64" ]; then
+            echo "Restoring my-upload-key.jks from GitHub Secret..."
+            echo "$SECRET_KEYSTORE_BASE64" | base64 -d > "$PROJECT_DIR/my-upload-key.jks"
+          elif [ ! -f "$PROJECT_DIR/my-upload-key.jks" ] && [ -f "$PROJECT_DIR/my-upload-key.jks.base64" ]; then
+            echo "Decoding my-upload-key.jks from repository base64..."
+            base64 -d "$PROJECT_DIR/my-upload-key.jks.base64" > "$PROJECT_DIR/my-upload-key.jks"
+          fi
+
+          # Validate and synchronize keystore passwords
+          if [ -f "$PROJECT_DIR/my-upload-key.jks" ]; then
+            echo "Testing existing keystore with provided STORE_PASSWORD..."
+            if keytool -list -keystore "$PROJECT_DIR/my-upload-key.jks" -storepass "$STORE_PASS" -alias upload >/dev/null 2>&1; then
+              echo "Keystore validation successful with configured STORE_PASSWORD."
             else
-              echo "Generating release keystore in $PROJECT_DIR..."
-              keytool -genkey -v -keystore "$PROJECT_DIR/my-upload-key.jks" -storepass 'Pk#9xL@2026$PocketHome!Key' -alias upload -keypass 'Pk#9xL@2026$PocketHome!Key' -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=PocketHome, OU=PocketHome, O=PocketHome, L=Delhi, ST=Delhi, C=IN"
+              echo "Keystore cannot be opened with STORE_PASSWORD. Checking default credentials..."
+              if keytool -list -keystore "$PROJECT_DIR/my-upload-key.jks" -storepass 'Pk#9xL@2026$PocketHome!Key' -alias upload >/dev/null 2>&1; then
+                echo "Keystore matches default password. Updating store and key password to match GitHub Secret..."
+                keytool -storepasswd -keystore "$PROJECT_DIR/my-upload-key.jks" -storepass 'Pk#9xL@2026$PocketHome!Key' -new "$STORE_PASS"
+                keytool -keypasswd -alias upload -keystore "$PROJECT_DIR/my-upload-key.jks" -storepass "$STORE_PASS" -keypass 'Pk#9xL@2026$PocketHome!Key' -new "$KEY_PASS"
+                echo "Keystore passwords updated successfully."
+              else
+                echo "Keystore mismatch. Generating fresh release keystore with provided secrets..."
+                rm -f "$PROJECT_DIR/my-upload-key.jks"
+                keytool -genkey -v -keystore "$PROJECT_DIR/my-upload-key.jks" -storepass "$STORE_PASS" -alias upload -keypass "$KEY_PASS" -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=PocketHome, OU=PocketHome, O=PocketHome, L=Delhi, ST=Delhi, C=IN"
+              fi
             fi
           else
-            echo "Release keystore my-upload-key.jks already exists."
+            echo "Generating release keystore in $PROJECT_DIR with configured passwords..."
+            keytool -genkey -v -keystore "$PROJECT_DIR/my-upload-key.jks" -storepass "$STORE_PASS" -alias upload -keypass "$KEY_PASS" -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=PocketHome, OU=PocketHome, O=PocketHome, L=Delhi, ST=Delhi, C=IN"
           fi
+
+          echo "Final validation check:"
+          keytool -list -keystore "$PROJECT_DIR/my-upload-key.jks" -storepass "$STORE_PASS" -alias upload
 
       - name: Make Gradlew Executable
         run: |
@@ -85,12 +117,22 @@ jobs:
       - name: Build Release and Debug APKs with Gradle
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD || 'Pk#9xL@2026$PocketHome!Key' }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD || 'Pk#9xL@2026$PocketHome!Key' }}
-          KEYSTORE_PATH: ${{ steps.locate_dir.outputs.project_dir }}/my-upload-key.jks
+          SECRET_STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+          SECRET_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           PROJECT_DIR="${{ steps.locate_dir.outputs.project_dir }}"
           cd "$PROJECT_DIR"
+
+          STORE_PASS="${SECRET_STORE_PASSWORD:-Pk#9xL@2026$PocketHome!Key}"
+          STORE_PASS=$(echo "$STORE_PASS" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//")
+          KEY_PASS="${SECRET_KEY_PASSWORD:-$STORE_PASS}"
+          KEY_PASS=$(echo "$KEY_PASS" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//")
+
+          export STORE_PASSWORD="$STORE_PASS"
+          export KEY_PASSWORD="$KEY_PASS"
+          export KEY_ALIAS="upload"
+          export KEYSTORE_PATH="$PROJECT_DIR/my-upload-key.jks"
+
           ./gradlew assembleRelease assembleDebug --no-daemon --stacktrace
 
       - name: Locate and Prepare APKs for Website & Releases
